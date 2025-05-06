@@ -399,7 +399,7 @@ action:
               - conditions:
                   - condition: numeric_state
                     entity_id: number.bambu_lab_p1_spaghetti_detection_p
-                    above: !input bambu_lab_p1_spaghetti_detection_thresh_failure # Assuming this is an entity, if not, it needs to be a number
+                    above: number.bambu_lab_p1_spaghetti_detection_thresh_failure
                 sequence:
                   - service: number.set_value
                     data:
@@ -410,7 +410,7 @@ action:
               - conditions:
                   - condition: numeric_state
                     entity_id: number.bambu_lab_p1_spaghetti_detection_p
-                    above: !input bambu_lab_p1_spaghetti_detection_thresh_warning # Assuming this is an entity
+                    above: number.bambu_lab_p1_spaghetti_detection_thresh_warning
                 sequence:
                   - service: number.set_value
                     data:
