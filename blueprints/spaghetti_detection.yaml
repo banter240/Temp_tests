@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.31
+  name: Bambu Lab - Spaghetti Detection v1.32
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -234,7 +234,7 @@ variables:
       sequence:
         - service: !input notification_service
           data:
-            title: "{{ notification_title_var }}" # Use variable for title
+            title: "{{ notification_title_var | default('') }}" # Use variable for title, default to empty if not set
             message: "Confidence: {{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) | int }}%"
             data:
               image: "{{ HOME_ASSISTANT_HOST_VAR }}{{ state_attr(PRINTER_CAMERA_VAR, 'entity_picture') }}"
@@ -245,7 +245,7 @@ variables:
               actions:
                 - { action: BAMBU_LAB_RESUME_PRINTING, title: Resume Printing }
                 - { action: BAMBU_LAB_STOP_PRINTING, title: Stop Printing }
-                - { action: BAMBU_LAB_DISABLE_DETECTION, title: "{{ disable_action_title_var }}" } # Use a variable for the dynamic title
+                - { action: BAMBU_LAB_DISABLE_DETECTION, title: "{{ disable_action_title_var | default('') }}" } # Use a variable, default to empty
           alias: Send Critical Notification
     - conditions:
         - condition: template
@@ -253,14 +253,14 @@ variables:
       sequence:
         - service: !input notification_service
           data:
-            title: "{{ notification_title_var }}" # Use variable for title
+            title: "{{ notification_title_var | default('') }}" # Use variable for title, default to empty if not set
             message: "Confidence: {{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) | int }}%"
             data:
               image: "{{ HOME_ASSISTANT_HOST_VAR }}{{ state_attr(PRINTER_CAMERA_VAR, 'entity_picture') }}"
               actions:
                 - { action: BAMBU_LAB_RESUME_PRINTING, title: Resume Printing }
                 - { action: BAMBU_LAB_STOP_PRINTING, title: Stop Printing }
-                - { action: BAMBU_LAB_DISABLE_DETECTION, title: "{{ disable_action_title_var }}" } # Use a variable for the dynamic title
+                - { action: BAMBU_LAB_DISABLE_DETECTION, title: "{{ disable_action_title_var | default('') }}" } # Use a variable, default to empty
           alias: Send Standard Notification
 
 mode: single
