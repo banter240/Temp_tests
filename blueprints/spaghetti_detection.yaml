@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.63
+  name: Bambu Lab - Spaghetti Detection v1.64
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -519,11 +519,11 @@ action: # Main automation actions
               resolved_ha_host_input: !input home_assistant_host
 
               # Define notification content variables directly
-              _effective_notification_host: "{{ _effective_notification_host_template_str | template }}"
-              disable_action_title_var: "{{ _disable_action_title_template_str | template }}"
-              _file_info_content: "{{ _file_info_content_template_str | template }}"
-              _progress_info_content: "{{ _progress_info_content_template_str | template }}"
-              _remaining_time_info_content: "{{ _remaining_time_info_content_template_str | template }}"
+              _effective_notification_host: "{{ template(_effective_notification_host_template_str) }}"
+              disable_action_title_var: "{{ template(_disable_action_title_template_str) }}"
+              _file_info_content: "{{ template(_file_info_content_template_str) }}"
+              _progress_info_content: "{{ template(_progress_info_content_template_str) }}"
+              _remaining_time_info_content: "{{ template(_remaining_time_info_content_template_str) }}"
           # Simulate a high confidence value by setting the normalized_p number helper
           - service: number.set_value
             target:
@@ -912,11 +912,11 @@ action: # Main automation actions
                       resolved_ha_host_input: !input home_assistant_host
 
                       # Define notification content variables directly
-                      _effective_notification_host: "{{ _effective_notification_host_template_str | template }}"
-                      disable_action_title_var: "{{ _disable_action_title_template_str | template }}"
-                      _file_info_content: "{{ _file_info_content_template_str | template }}"
-                      _progress_info_content: "{{ _progress_info_content_template_str | template }}"
-                      _remaining_time_info_content: "{{ _remaining_time_info_content_template_str | template }}"
+                      _effective_notification_host: "{{ template(_effective_notification_host_template_str) }}"
+                      disable_action_title_var: "{{ template(_disable_action_title_template_str) }}"
+                      _file_info_content: "{{ template(_file_info_content_template_str) }}"
+                      _progress_info_content: "{{ template(_progress_info_content_template_str) }}"
+                      _remaining_time_info_content: "{{ template(_remaining_time_info_content_template_str) }}"
                   - choose: # Use the anchored choose content
                       *action_choose_anchor # Printer action (pause/stop)
                     alias: "Execute Anchored Action Choose (Emergency)"
@@ -990,11 +990,11 @@ action: # Main automation actions
                       resolved_ha_host_input: !input home_assistant_host
 
                       # Define notification content variables directly
-                      _effective_notification_host: "{{ _effective_notification_host_template_str | template }}"
-                      disable_action_title_var: "{{ _disable_action_title_template_str | template }}"
-                      _file_info_content: "{{ _file_info_content_template_str | template }}"
-                      _progress_info_content: "{{ _progress_info_content_template_str | template }}"
-                      _remaining_time_info_content: "{{ _remaining_time_info_content_template_str | template }}"
+                      _effective_notification_host: "{{ template(_effective_notification_host_template_str) }}"
+                      disable_action_title_var: "{{ template(_disable_action_title_template_str) }}"
+                      _file_info_content: "{{ template(_file_info_content_template_str) }}"
+                      _progress_info_content: "{{ template(_progress_info_content_template_str) }}"
+                      _remaining_time_info_content: "{{ template(_remaining_time_info_content_template_str) }}"
                   - choose: # Use the anchored choose content
                       *action_choose_anchor # Printer action (pause/stop)
                     alias: "Execute Anchored Action Choose (Main Failure)"
@@ -1073,11 +1073,11 @@ action: # Main automation actions
                       resolved_ha_host_input: !input home_assistant_host
 
                       # Define notification content variables directly
-                      _effective_notification_host: "{{ _effective_notification_host_template_str | template }}"
-                      disable_action_title_var: "{{ _disable_action_title_template_str | template }}"
-                      _file_info_content: "{{ _file_info_content_template_str | template }}"
-                      _progress_info_content: "{{ _progress_info_content_template_str | template }}"
-                      _remaining_time_info_content: "{{ _remaining_time_info_content_template_str | template }}"
+                      _effective_notification_host: "{{ template(_effective_notification_host_template_str) }}"
+                      disable_action_title_var: "{{ template(_disable_action_title_template_str) }}"
+                      _file_info_content: "{{ template(_file_info_content_template_str) }}"
+                      _progress_info_content: "{{ template(_progress_info_content_template_str) }}"
+                      _remaining_time_info_content: "{{ template(_remaining_time_info_content_template_str) }}"
                   # Only send notification, no printer action for this warning case
                   - choose: # Use the anchored choose content
                       *notification_choose_anchor # Notification
