@@ -194,7 +194,7 @@ blueprint:
       selector:
         boolean:
 trigger_variables:
-  # Pre-calculate if user-defined failure threshold is correctly set below emergency threshold
+  # Check if user-defined thresholds are logically ordered.
   user_failure_below_emergency: "{{ (!input failure_percentage_threshold | int(0)) < (!input emergency_action_threshold | int(0)) }}"
 
 variables:
@@ -205,8 +205,8 @@ variables:
   DETECTION_FREQUENCY_VAR: !input detection_frequency
 
   # --- YAML Anchors for Reusable Action Sequences ---
-  _action_choose_sequence: &action_choose_anchor # Defines printer actions (pause/stop) based on FAILURE_ACTION_VAR
-    # This anchor provides the list of choices for a 'choose' action.
+  _action_choose_sequence: &action_choose_anchor # Defines printer actions (pause/stop).
+    # Used in a 'choose' block; selected based on FAILURE_ACTION_VAR.
     - conditions: # Pause Action
         - condition: template
           value_template: "{{ FAILURE_ACTION_VAR == 'pause' }}"
@@ -222,8 +222,8 @@ variables:
           target: { entity_id: !input printer_stop_button }
           alias: Execute Stop Action
 
-  _notification_choose_sequence: &notification_choose_anchor # Defines notification actions (critical/standard)
-    # Requires 'notification_title_var' variable to be set before calling this anchor.
+  _notification_choose_sequence: &notification_choose_anchor # Defines notification types (critical/standard).
+    # Expects 'notification_title_var' to be set.
     - conditions:
         - condition: template
           value_template: "{{ NOTIFICATION_SETTINGS_VAR == 'critical' }}"
@@ -259,8 +259,8 @@ variables:
                 - { action: BAMBU_LAB_DISABLE_DETECTION, title: "Disable {{ !input timeout_minutes }} min" }
           alias: Send Standard Notification
 
-  _resets_tail_sequence: &resets_tail_anchor # Resets detection metrics and updates last notification time
-    - service: number.set_value # Reset detection metrics
+  _resets_tail_sequence: &resets_tail_anchor # Common actions after a detection event.
+    - service: number.set_value # Reset all relevant detection metrics.
       data: { value: 0 }
       target: { entity_id: [number.bambu_lab_p1_spaghetti_detection_current_frame_number, number.bambu_lab_p1_spaghetti_detection_ewm_mean, number.bambu_lab_p1_spaghetti_detection_rolling_mean_short, number.bambu_lab_p1_spaghetti_detection_rolling_mean_long, number.bambu_lab_p1_spaghetti_detection_normalized_p, number.bambu_lab_p1_spaghetti_detection_adjusted_ewm_mean, number.bambu_lab_p1_spaghetti_detection_p_sum] }
       alias: Reset Detection Metrics
@@ -272,14 +272,14 @@ variables:
 mode: single
 max_exceeded: silent
 trigger:
-  # Trigger when printer stage changes to 'printing'
+  # Fired when a print job starts.
   - platform: state
     entity_id:
       - !input printer_current_stage_sensor
     to: printing
     id: BAMBU_LAB_PRINTER_STAGE_CHANGE
 
-  # Notification action triggers
+  # Triggers for actions selected from mobile notifications.
   - platform: event # Trigger for "Pause Printing" notification action
     event_type: mobile_app_notification_action
     id: BAMBU_LAB_PAUSE_PRINTING
@@ -301,14 +301,14 @@ trigger:
     event_data:
       action: BAMBU_LAB_DISABLE_DETECTION
 
-  # Main detection trigger based on time pattern (frequency)
+  # Periodic trigger for running the detection logic.
   - trigger: time_pattern
     id: BAMBU_LAB_DETECTION_TRIGGER
     seconds: !input detection_frequency
 condition: [ ]
 action:
   - choose:
-      # Actions to take when a print starts (BAMBU_LAB_PRINTER_STAGE_CHANGE trigger)
+      # Handle print start: Reset metrics and optionally turn on light.
       - conditions:
           - condition: trigger
             id: BAMBU_LAB_PRINTER_STAGE_CHANGE
@@ -325,7 +325,7 @@ action:
                 - number.bambu_lab_p1_spaghetti_detection_normalized_p
                 - number.bambu_lab_p1_spaghetti_detection_adjusted_ewm_mean
                 - number.bambu_lab_p1_spaghetti_detection_p_sum
-          - if: # Optionally turn on printer light if auto_turn_on_light is true and light is off
+          - if: # Turn on printer light if configured and currently off.
             - condition: and
               conditions:
               - condition: state
@@ -338,19 +338,7 @@ action:
                 target:
                   entity_id:
                     - !input printer_chamber_light
-
-      # Handle specific "Pause Printing" notification action
-      - conditions:
-          - condition: trigger
-            id: BAMBU_LAB_PAUSE_PRINTING
-        sequence:
-          - service: button.press
-            data: { }
-            target:
-              entity_id: !input printer_pause_button
-            alias: Execute Pause from Notification
-
-      # Handle general notification actions (Pause, Resume, Stop)
+      # Handle actions triggered from notifications (Pause, Resume, Stop printer).
       - conditions:
           - condition: trigger
             id:
@@ -385,13 +373,13 @@ action:
                     target:
                       entity_id: !input printer_stop_button
 
-      # Handle Disable Detection Notification Action
+      # Handle "Disable Detection" action from notification: Sets a timeout.
       - conditions:
           - condition: trigger
             id: BAMBU_LAB_DISABLE_DETECTION
         sequence:
           - service: input_datetime.set_datetime
-            target:
+            target: # Store the time until which detection should be disabled.
               entity_id: !input detection_disable_until_helper
             data:
               datetime: "{{ now() + timedelta(minutes=!input timeout_minutes | int(0)) }}"
@@ -399,12 +387,12 @@ action:
             data:
               message: "Bambu Lab Spaghetti Detection: Temporarily disabled actions/notifications for {{ !input timeout_minutes }} minutes via notification action."
               level: info
-      # Main detection logic (BAMBU_LAB_DETECTION_TRIGGER)
+      # This is the main spaghetti detection sequence, triggered periodically.
       - conditions:
           - condition: trigger
             id: BAMBU_LAB_DETECTION_TRIGGER
         sequence:
-          - if: # Stop if printer is not in 'running' state
+          - if: # Only run detection if the printer is actively printing.
               - condition: not
                 conditions:
                   - condition: state
@@ -412,13 +400,13 @@ action:
                     state: running
             then:
               - stop: ""
-          - if: # Skip if current second doesn't match detection frequency (for finer control than time_pattern alone)
+          - if: # Additional check for detection frequency (can be more precise than time_pattern alone).
               - condition: template
                 value_template: >-
                   {{ now().second % (DETECTION_FREQUENCY_VAR | replace("/", "") | int(0)) > 0 }}
             then:
               - stop: ""
-          - if: # Optionally turn on printer light if auto_turn_on_light is true and light is off
+          - if: # Turn on printer light if configured and currently off.
             - condition: and
               conditions:
               - condition: state
@@ -432,7 +420,7 @@ action:
                   entity_id:
                     - !input printer_chamber_light
 
-          # Configuration Validation: Ensure Failure Threshold < Emergency Threshold
+          # Sanity check: User-defined failure threshold must be below emergency threshold.
           - if:
               - condition: template
                 value_template: "{{ not trigger_variables.user_failure_below_emergency }}"
@@ -445,7 +433,7 @@ action:
               - stop: "Configuration Error: Thresholds misconfigured."
             alias: "Validation Check: Failure < Emergency Threshold"
 
-          # Call Obico ML API for prediction
+          # Request spaghetti prediction from Obico ML API.
           - service: bambu_lab_p1_spaghetti_detection.predict
             data:
               obico_host: !input obico_host
@@ -453,151 +441,164 @@ action:
               image_url: "{{ HOME_ASSISTANT_HOST_VAR }}{{ state_attr(PRINTER_CAMERA_VAR, 'entity_picture') }}"
             response_variable: result
 
-          # --- Update detection metrics based on API response ---
-          - service: number.set_value
-            data:
-              value: "{{ result.result.detections | map(attribute=1) | sum | float(0) }}"
-            target:
-              entity_id: number.bambu_lab_p1_spaghetti_detection_p_sum
-
-          - service: number.set_value
-            data:
-              value: "{{ states('number.bambu_lab_p1_spaghetti_detection_current_frame_number') | float(0) + 1 }}"
-            target:
-              entity_id: number.bambu_lab_p1_spaghetti_detection_current_frame_number
-
-          - service: number.set_value
-            data:
-              value: "{{ states('number.bambu_lab_p1_spaghetti_detection_lifetime_frame_number') | float(0) + 1 }}"
-            target:
-              entity_id: number.bambu_lab_p1_spaghetti_detection_lifetime_frame_number
-
-          - service: number.set_value
-            data:
-              value: "{{ (states('number.bambu_lab_p1_spaghetti_detection_p_sum') | float(0)) * (2 / (12 + 1)) + (states('number.bambu_lab_p1_spaghetti_detection_ewm_mean') | float(0)) * (1 - (2 / (12 + 1))) }}"
-            target:
-              entity_id: number.bambu_lab_p1_spaghetti_detection_ewm_mean
-
-          - service: number.set_value
-            data:
-              value: "{{ (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_short') | float(0)) + ((states('number.bambu_lab_p1_spaghetti_detection_p_sum') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_short') | float(0))) / (310 if 310 <= (states('number.bambu_lab_p1_spaghetti_detection_current_frame_number') | float(0)) else (states('number.bambu_lab_p1_spaghetti_detection_current_frame_number') | float(0)) + 1) }}"
-            target:
-              entity_id: number.bambu_lab_p1_spaghetti_detection_rolling_mean_short
-
-          - service: number.set_value
-            data:
-              value: "{{ (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_long') | float(0)) + ((states('number.bambu_lab_p1_spaghetti_detection_p_sum') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_long') | float(0))) / (7200 if 7200 <= (states('number.bambu_lab_p1_spaghetti_detection_lifetime_frame_number') | float(0)) else (states('number.bambu_lab_p1_spaghetti_detection_lifetime_frame_number') | float(0)) + 1) }}"
-            target:
-              entity_id: number.bambu_lab_p1_spaghetti_detection_rolling_mean_long
-
-          - if: # Initial frames might be noisy, skip detection for the first 30 frames
-              - condition: numeric_state
-                entity_id: number.bambu_lab_p1_spaghetti_detection_current_frame_number
-                below: 30
+          # Process the API response if it's valid.
+          - if:
+              - condition: template
+                value_template: "{{ result is defined and result.get('result') is defined and result.result.get('detections') is defined }}"
             then:
-              - stop: ""
-            alias: "if current_frame_num < 30" # Alias for the if-condition
+              # --- Update core detection metrics with new data from API ---
+              - service: number.set_value # Sum of detected probabilities.
+                data:
+                  value: "{{ result.result.detections | map(attribute=1) | sum | float(0) }}"
+                target:
+                  entity_id: number.bambu_lab_p1_spaghetti_detection_p_sum
 
-          # Calculate adjusted EWM (Exponentially Weighted Moving Average)
-          - service: number.set_value
-            data:
-              value: >-
-                {{ (states('number.bambu_lab_p1_spaghetti_detection_ewm_mean') | float) - (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_long') | float) }}
-            target:
-              entity_id: number.bambu_lab_p1_spaghetti_detection_adjusted_ewm_mean
+              - service: number.set_value
+                data:
+                  value: "{{ states('number.bambu_lab_p1_spaghetti_detection_current_frame_number') | float(0) + 1 }}"
+                target:
+                  entity_id: number.bambu_lab_p1_spaghetti_detection_current_frame_number
 
-          # Calculate difference between short and long rolling means
-          - service: number.set_value
-            data:
-              value: >-
-                {{ ((states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_short') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_long') | float(0))) * 3.8 }}
-            target:
-              entity_id: number.bambu_lab_p1_spaghetti_detection_rolling_mean_diff
+              - service: number.set_value
+                data:
+                  value: "{{ states('number.bambu_lab_p1_spaghetti_detection_lifetime_frame_number') | float(0) + 1 }}"
+                target:
+                  entity_id: number.bambu_lab_p1_spaghetti_detection_lifetime_frame_number
 
-          # Calculate dynamic warning threshold
-          - service: number.set_value
-            data:
-              value: >-
-                {{ min(0.78, max(0.33, (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_diff') | float(0)))) }}
-            target:
-              entity_id: number.bambu_lab_p1_spaghetti_detection_thresh_warning
+              - service: number.set_value
+                data:
+                  value: "{{ (states('number.bambu_lab_p1_spaghetti_detection_p_sum') | float(0)) * (2 / (12 + 1)) + (states('number.bambu_lab_p1_spaghetti_detection_ewm_mean') | float(0)) * (1 - (2 / (12 + 1))) }}"
+                target:
+                  entity_id: number.bambu_lab_p1_spaghetti_detection_ewm_mean
 
-          # Calculate dynamic failure threshold
-          - service: number.set_value
-            data:
-              value: >-
-                {{ (states('number.bambu_lab_p1_spaghetti_detection_thresh_warning') | float(0)) * 1.75 }}
-            target:
-              entity_id: number.bambu_lab_p1_spaghetti_detection_thresh_failure
+              - service: number.set_value
+                data:
+                  value: "{{ (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_short') | float(0)) + ((states('number.bambu_lab_p1_spaghetti_detection_p_sum') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_short') | float(0))) / (310 if 310 <= (states('number.bambu_lab_p1_spaghetti_detection_current_frame_number') | float(0)) else (states('number.bambu_lab_p1_spaghetti_detection_current_frame_number') | float(0)) + 1) }}"
+                target:
+                  entity_id: number.bambu_lab_p1_spaghetti_detection_rolling_mean_short
 
-          # Calculate 'p' value (raw probability score)
-          - service: number.set_value
-            data:
-              value: >-
-                {{ (states('number.bambu_lab_p1_spaghetti_detection_ewm_mean') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_long') | float(0)) }}
-            target:
-              entity_id: number.bambu_lab_p1_spaghetti_detection_p
+              - service: number.set_value
+                data:
+                  value: "{{ (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_long') | float(0)) + ((states('number.bambu_lab_p1_spaghetti_detection_p_sum') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_long') | float(0))) / (7200 if 7200 <= (states('number.bambu_lab_p1_spaghetti_detection_lifetime_frame_number') | float(0)) else (states('number.bambu_lab_p1_spaghetti_detection_lifetime_frame_number') | float(0)) + 1) }}"
+                target:
+                  entity_id: number.bambu_lab_p1_spaghetti_detection_rolling_mean_long
 
-          # Normalize the 'p' value to a 0-1 range based on dynamic thresholds
-          - choose:
-              - conditions:
+              - if: # Skip processing for the first few frames as they might be unreliable.
                   - condition: numeric_state
-                    entity_id: number.bambu_lab_p1_spaghetti_detection_p
-                    above: number.bambu_lab_p1_spaghetti_detection_thresh_failure
-                sequence:
-                  - service: number.set_value
-                    data:
-                      value: >-
-                        {{ min(1.0, max(2.0 / 3.0, ((((states('number.bambu_lab_p1_spaghetti_detection_p') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_thresh_failure') | float(0))) * (1.0 - 2.0 / 3.0)) / (((states('number.bambu_lab_p1_spaghetti_detection_thresh_failure') | float(0)) * 1.5 - (states('number.bambu_lab_p1_spaghetti_detection_thresh_failure') | float(0))) if ((states('number.bambu_lab_p1_spaghetti_detection_thresh_failure') | float(0)) * 1.5 - (states('number.bambu_lab_p1_spaghetti_detection_thresh_failure') | float(0))) != 0 else 1)) + 2.0 / 3.0)) }}
-                    target:
-                      entity_id: number.bambu_lab_p1_spaghetti_detection_normalized_p
-              - conditions:
-                  - condition: numeric_state
-                    entity_id: number.bambu_lab_p1_spaghetti_detection_p
-                    above: number.bambu_lab_p1_spaghetti_detection_thresh_warning
-                sequence:
-                  - service: number.set_value
-                    data:
-                      value: >-
-                        {{ min(2.0 / 3.0, max(1.0 / 3.0, ((((states('number.bambu_lab_p1_spaghetti_detection_p') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_thresh_warning') | float(0))) * (2.0 / 3.0 - 1.0 / 3.0)) / (((states('number.bambu_lab_p1_spaghetti_detection_thresh_failure') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_thresh_warning') | float(0))) if ((states('number.bambu_lab_p1_spaghetti_detection_thresh_failure') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_thresh_warning') | float(0))) != 0 else 1)) + 1.0 / 3.0)) }}
-                    target:
-                      entity_id: number.bambu_lab_p1_spaghetti_detection_normalized_p
-            default:
+                    entity_id: number.bambu_lab_p1_spaghetti_detection_current_frame_number
+                    below: 30
+                then:
+                  - stop: ""
+                alias: "if current_frame_num < 30"
+
+              # Calculate adjusted EWM (Exponentially Weighted Moving Average)
               - service: number.set_value
                 data:
                   value: >-
-                    {{ min(1.0 / 3.0, max(0, ((states('number.bambu_lab_p1_spaghetti_detection_p') | float(0)) * 1.0 / 3.0) / ((states('number.bambu_lab_p1_spaghetti_detection_thresh_warning') | float(0)) if (states('number.bambu_lab_p1_spaghetti_detection_thresh_warning') | float(0)) != 0 else 1))) }}
+                    {{ (states('number.bambu_lab_p1_spaghetti_detection_ewm_mean') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_long') | float(0)) }}
                 target:
-                  entity_id: number.bambu_lab_p1_spaghetti_detection_normalized_p
+                  entity_id: number.bambu_lab_p1_spaghetti_detection_adjusted_ewm_mean
 
-          # Skip if adjusted EWM is below a low threshold (original algorithm logic)
-          - if:
-              - condition: numeric_state
-                entity_id: number.bambu_lab_p1_spaghetti_detection_adjusted_ewm_mean
-                below: 0.38
-            then:
-              - stop: ""
-          # Skip if adjusted EWM is within a certain range and below rolling mean difference (original algorithm logic)
-          - if:
-              - condition: and
-                conditions:
+              # Calculate difference between short and long rolling means
+              - service: number.set_value
+                data:
+                  value: >-
+                    {{ ((states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_short') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_long') | float(0))) * 3.8 }}
+                target:
+                  entity_id: number.bambu_lab_p1_spaghetti_detection_rolling_mean_diff
+
+              # Calculate dynamic warning threshold
+              - service: number.set_value
+                data:
+                  value: >-
+                    {{ min(0.78, max(0.33, (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_diff') | float(0)))) }}
+                target:
+                  entity_id: number.bambu_lab_p1_spaghetti_detection_thresh_warning
+
+              # Calculate dynamic failure threshold
+              - service: number.set_value
+                data:
+                  value: >-
+                    {{ (states('number.bambu_lab_p1_spaghetti_detection_thresh_warning') | float(0)) * 1.75 }}
+                target:
+                  entity_id: number.bambu_lab_p1_spaghetti_detection_thresh_failure
+
+              # Calculate 'p' value (raw probability score)
+              - service: number.set_value
+                data:
+                  value: >-
+                    {{ (states('number.bambu_lab_p1_spaghetti_detection_ewm_mean') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_long') | float(0)) }}
+                target:
+                  entity_id: number.bambu_lab_p1_spaghetti_detection_p
+
+              # Normalize the 'p' value to a 0-1 range based on dynamic thresholds
+              - choose:
+                  - conditions:
+                      - condition: numeric_state
+                        entity_id: number.bambu_lab_p1_spaghetti_detection_p
+                        above: number.bambu_lab_p1_spaghetti_detection_thresh_failure
+                    sequence:
+                      - service: number.set_value
+                        data:
+                          value: >-
+                            {{ min(1.0, max(2.0 / 3.0, ((((states('number.bambu_lab_p1_spaghetti_detection_p') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_thresh_failure') | float(0))) * (1.0 - 2.0 / 3.0)) / (((states('number.bambu_lab_p1_spaghetti_detection_thresh_failure') | float(0)) * 1.5 - (states('number.bambu_lab_p1_spaghetti_detection_thresh_failure') | float(0))) if ((states('number.bambu_lab_p1_spaghetti_detection_thresh_failure') | float(0)) * 1.5 - (states('number.bambu_lab_p1_spaghetti_detection_thresh_failure') | float(0))) != 0 else 1)) + 2.0 / 3.0)) }}
+                        target:
+                          entity_id: number.bambu_lab_p1_spaghetti_detection_normalized_p
+                  - conditions:
+                      - condition: numeric_state
+                        entity_id: number.bambu_lab_p1_spaghetti_detection_p
+                        above: number.bambu_lab_p1_spaghetti_detection_thresh_warning
+                    sequence:
+                      - service: number.set_value
+                        data:
+                          value: >-
+                            {{ min(2.0 / 3.0, max(1.0 / 3.0, ((((states('number.bambu_lab_p1_spaghetti_detection_p') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_thresh_warning') | float(0))) * (2.0 / 3.0 - 1.0 / 3.0)) / (((states('number.bambu_lab_p1_spaghetti_detection_thresh_failure') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_thresh_warning') | float(0))) if ((states('number.bambu_lab_p1_spaghetti_detection_thresh_failure') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_thresh_warning') | float(0))) != 0 else 1)) + 1.0 / 3.0)) }}
+                        target:
+                          entity_id: number.bambu_lab_p1_spaghetti_detection_normalized_p
+                default:
+                  - service: number.set_value
+                    data:
+                      value: >-
+                        {{ min(1.0 / 3.0, max(0, ((states('number.bambu_lab_p1_spaghetti_detection_p') | float(0)) * 1.0 / 3.0) / ((states('number.bambu_lab_p1_spaghetti_detection_thresh_warning') | float(0)) if (states('number.bambu_lab_p1_spaghetti_detection_thresh_warning') | float(0)) != 0 else 1))) }}
+                    target:
+                      entity_id: number.bambu_lab_p1_spaghetti_detection_normalized_p
+
+              # Further filtering based on adjusted EWM (part of the original detection algorithm).
+              - if:
                   - condition: numeric_state
                     entity_id: number.bambu_lab_p1_spaghetti_detection_adjusted_ewm_mean
-                    below: 0.78
-                  - condition: numeric_state
-                    entity_id: number.bambu_lab_p1_spaghetti_detection_adjusted_ewm_mean
-                    below: number.bambu_lab_p1_spaghetti_detection_rolling_mean_diff
-            then:
-              - stop: ""
+                    below: 0.38
+                then:
+                  - stop: ""
+              # Skip if adjusted EWM is within a certain range and below rolling mean difference (original algorithm logic)
+              - if:
+                  - condition: and
+                    conditions:
+                      - condition: numeric_state
+                        entity_id: number.bambu_lab_p1_spaghetti_detection_adjusted_ewm_mean
+                        below: 0.78
+                      - condition: numeric_state
+                        entity_id: number.bambu_lab_p1_spaghetti_detection_adjusted_ewm_mean
+                        below: number.bambu_lab_p1_spaghetti_detection_rolling_mean_diff
+                then:
+                  - stop: ""
+            else: # API call failed or returned an invalid response.
+              - service: system_log.write
+                data:
+                  message: "Bambu Lab Spaghetti Detection: API call to Obico failed or returned an unexpected response. Result: {{ result }}"
+                  level: warning # Log as warning to avoid spamming errors for transient issues.
+              - stop: "API call processing failed for this cycle." # Halt this detection cycle.
+            alias: "Process API Response and Update Metrics"
 
-          # Cooldown: Do not send notifications more than once per minute (unless it's an emergency)
+          # Prevent notification spam: only notify once per minute for non-emergency events.
+          # This check is bypassed if an emergency threshold is met later.
           - if:
               - condition: template
                 value_template: >-
                   {{ now() - states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime | as_local < timedelta(minutes=1) }}
             then:
               - stop: ""
-            alias: "if now() - last_notify_time < 1min" # Alias for the if-condition
+            alias: "if now() - last_notify_time < 1min"
 
           # Check if detection is temporarily disabled by user timeout
           - if:
@@ -605,14 +606,14 @@ action:
                 value_template: >-
                   {{ now() < (states(!input detection_disable_until_helper) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00'))) }}
             then:
-              - service: system_log.write # Optional: Log that action was skipped due to timeout
+              - service: system_log.write # Log that actions are skipped due to active user timeout.
                 data:
                   message: "Bambu Lab Spaghetti Detection: Action/Notification skipped due to active timeout until {{ states(!input detection_disable_until_helper) }}."
                   level: info
               - stop: "Detection temporarily disabled by timeout."
             alias: "Check if detection is temporarily disabled (within timeout period)"
           
-          # --- Main Decision Logic based on Thresholds ---
+          # --- Main decision logic: Determine action based on confidence and thresholds ---
           - choose:
               # Case 1: Emergency Threshold Met (Overrides Timeout and 1-min cooldown)
               - conditions: # Emergency Action
@@ -673,7 +674,6 @@ action:
                     target: { entity_id: datetime.bambu_lab_p1_spaghetti_detection_last_notify_time }
                     alias: Update Last Notify Time (Warning Only)
                 alias: "Execute Warning Notification Sequence"
-            # Default: No specific action/notification conditions met.
-            # Timeout and cooldown checks are handled within the conditions above or in preceding 'if' blocks.
+            # If none of the above conditions are met, do nothing in this cycle.
             default: []
             alias: "Main Threshold Decision Block"
