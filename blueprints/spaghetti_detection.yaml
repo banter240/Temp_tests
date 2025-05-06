@@ -629,7 +629,6 @@ action:
               - conditions: # Emergency Action
                   - condition: template
                     value_template: "{{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) >= (!input emergency_action_threshold | int(0)) }}"
-                  alias: "Confidence >= Emergency Threshold"
                 sequence:
                   - variables: { notification_title_var: "Bambu Lab - EMERGENCY: Spaghetti Detected" }
                   - choose: # Use the anchored choose content
@@ -649,7 +648,6 @@ action:
                     value_template: "{{ not (now() < states(!input detection_disable_until_helper) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00'))) }}"
                   - condition: template # 1-minute notification cooldown NOT active
                     value_template: "{{ not (now() - states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local < timedelta(minutes=1)) }}"
-                  alias: "Confidence >= Min. Failure Threshold (No Timeout/Cooldown)"
                 sequence:
                   - variables: { notification_title_var: "Bambu Lab - Spaghetti Detected" }
                   - choose: # Use the anchored choose content
@@ -674,7 +672,6 @@ action:
                     value_template: "{{ not (now() < states(!input detection_disable_until_helper) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00'))) }}"
                   - condition: template # 1-minute notification cooldown NOT active
                     value_template: "{{ not (now() - states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local < timedelta(minutes=1)) }}"
-                  alias: "Warn Below Min. Threshold (No Timeout/Cooldown)"
                 sequence:
                   - variables: { notification_title_var: "Bambu Lab - Potential Issue (Warning)" }
                   # NO *action_choose_anchor here, only notification
