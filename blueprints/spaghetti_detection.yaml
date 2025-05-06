@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.66
+  name: Bambu Lab - Spaghetti Detection v1.67
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -855,7 +855,7 @@ action: # Main automation actions
           - if:
               - condition: template
                 value_template: >-
-                  {{ now() - states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime | as_local < timedelta(minutes=1) }}
+                  {{ (now() - (states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local)) < timedelta(minutes=1) }}
             then:
               - stop: ""
             alias: "if now() - last_notify_time < 1min"
@@ -863,7 +863,7 @@ action: # Main automation actions
           # Check if detection is temporarily disabled by user timeout
           - if:
               - condition: template
-                value_template: "{{ now() < (states(DETECTION_DISABLE_UNTIL_HELPER_VAR) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00'))) }}"
+                value_template: "{{ now() < (states(DETECTION_DISABLE_UNTIL_HELPER_VAR) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local) }}"
             then:
               - service: system_log.write # Log that actions are skipped due to active user timeout.
                 data:
@@ -966,7 +966,7 @@ action: # Main automation actions
                   - condition: template # Not Emergency (implicit by order)
                     value_template: "{{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) >= (FAILURE_PERCENTAGE_THRESHOLD_VAR | int(0)) }}"
                   - condition: template # User Timeout NOT active
-                    value_template: "{{ not (now() < (states(DETECTION_DISABLE_UNTIL_HELPER_VAR) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')))) }}"
+                    value_template: "{{ not (now() < (states(DETECTION_DISABLE_UNTIL_HELPER_VAR) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local)) }}"
                   - condition: template # 1-minute notification cooldown NOT active
                     value_template: "{{ not ((now() - (states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local) < timedelta(minutes=1))) }}"
                 sequence:
@@ -1062,7 +1062,7 @@ action: # Main automation actions
                     entity_id: number.bambu_lab_p1_spaghetti_detection_p # Using _p as per original normalized_p calculation
                     above: number.bambu_lab_p1_spaghetti_detection_thresh_warning
                   - condition: template # User Timeout NOT active
-                    value_template: "{{ not (now() < (states(DETECTION_DISABLE_UNTIL_HELPER_VAR) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')))) }}"
+                    value_template: "{{ not (now() < (states(DETECTION_DISABLE_UNTIL_HELPER_VAR) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local)) }}"
                   - condition: template # 1-minute notification cooldown NOT active
                     value_template: "{{ not ((now() - (states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local) < timedelta(minutes=1))) }}"
                 sequence:
