@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.24
+  name: Bambu Lab - Spaghetti Detection v1.26
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -10,7 +10,7 @@ blueprint:
     To use the 'Detection Disable Timeout' functionality, you need to manually create an `input_datetime` helper in Home Assistant:
     1. Go to "Settings" > "Devices & Services" > "Helpers".
     2. Click "Add Helper" and choose "Date and/or time".
-    3. Ensure both "Date" and "Time" are selected for the helper.
+    3. Ensure "Date and Time" is selected for the helper.
     4. Give it a name (e.g., "Spaghetti Detection Timeout Until").
     5. Select this newly created helper in the 'Detection Disable Datetime Helper' input field of this blueprint.
 
@@ -158,9 +158,10 @@ blueprint:
           unit_of_measurement: minutes
     detection_disable_until_helper:
       name: Detection Disable Datetime Helper
-      description: >-
-        An Input Datetime helper (Date and time) required for temporarily disabling detection.
-        Must be created manually via "Settings" > "Devices & Services" > "Helpers".
+      description: |
+        An `input_datetime` helper (with "Date and Time" enabled) is required for the feature that temporarily disables detection.
+        You can create this helper manually ("Settings" > "Devices & Services" > "Helpers") or directly via the entity selection dropdown for this input.
+        In both cases, ensure "Date and Time" is selected for the helper.
       selector:
         entity:
           domain: input_datetime
