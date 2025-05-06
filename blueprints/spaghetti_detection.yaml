@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.47
+  name: Bambu Lab - Spaghetti Detection v1.48
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -321,7 +321,7 @@ variables:
               {{- progress_info_var | default('') -}}
               {{- remaining_time_info_var | default('') -}}
             data:
-              image: "www/snapshots/bambu_lab_spaghetti_snapshot.jpg" # Use the taken snapshot
+              image: "{{ HOME_ASSISTANT_HOST_VAR }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}" # Add cache buster
               ttl: 0
               priority: high
               channel: alarm_stream
@@ -344,7 +344,7 @@ variables:
               {{- progress_info_var | default('') -}}
               {{- remaining_time_info_var | default('') -}}
             data:
-              image: "www/snapshots/bambu_lab_spaghetti_snapshot.jpg" # Use the taken snapshot
+              image: "{{ HOME_ASSISTANT_HOST_VAR }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}" # Add cache buster
               actions:
                 - { action: BAMBU_LAB_RESUME_PRINTING, title: Resume Printing }
                 - { action: BAMBU_LAB_STOP_PRINTING, title: Stop Printing }
@@ -420,6 +420,8 @@ action:
             data:
               filename: "www/snapshots/bambu_lab_spaghetti_snapshot.jpg" # Use the same snapshot name
             alias: Take Snapshot for DEBUG Notification
+          - delay: "00:00:02" # Increased delay to ensure snapshot is written
+            alias: Wait for snapshot to write (DEBUG)
           # Define a variable for the simulated confidence value first
           # Use !input here as blueprint_input might not be available in this specific variables template context
           - variables:
@@ -460,9 +462,9 @@ action:
             data:
               message: >
                 DEBUG Notification Prep: Title='DEBUG: Simulated Spaghetti Detected',
-                Notification Setting='{!input notification_settings}',
-                Notification Service='{!input notification_service}',
-                Debug Mode Input='{!input debug_mode_enabled}'
+                Notification Setting='{!input notification_settings}', Service='{!input notification_service}',
+                Debug Mode Input='{!input debug_mode_enabled}',
+                Image URL='{{ HOME_ASSISTANT_HOST_VAR }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}'
               level: warning # Test: Changed to warning to ensure visibility
             alias: Log Debug Notification Prep
           - choose: # Use the anchored choose content for notification
@@ -793,6 +795,8 @@ action:
                     data:
                       filename: "www/snapshots/bambu_lab_spaghetti_snapshot.jpg"
                     alias: Take Snapshot for Emergency Notification
+                  - delay: "00:00:02" # Brief delay to ensure snapshot is written
+                    alias: Wait for snapshot to write
                   - variables:
                       # Fetch blueprint inputs into local script variables
                       _input_timeout_minutes: !input timeout_minutes
@@ -850,6 +854,8 @@ action:
                     data:
                       filename: "www/snapshots/bambu_lab_spaghetti_snapshot.jpg"
                     alias: Take Snapshot for Main Failure Notification
+                  - delay: "00:00:02" # Brief delay to ensure snapshot is written
+                    alias: Wait for snapshot to write
                   - variables:
                       # Fetch blueprint inputs into local script variables
                       _input_timeout_minutes: !input timeout_minutes
@@ -912,6 +918,8 @@ action:
                     data:
                       filename: "www/snapshots/bambu_lab_spaghetti_snapshot.jpg"
                     alias: Take Snapshot for Warning Notification
+                  - delay: "00:00:02" # Brief delay to ensure snapshot is written
+                    alias: Wait for snapshot to write
                   - variables:
                       # Fetch blueprint inputs into local script variables
                       _input_timeout_minutes: !input timeout_minutes
