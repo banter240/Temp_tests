@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.43
+  name: Bambu Lab - Spaghetti Detection v1.44
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -395,7 +395,85 @@ trigger:
 
 condition: [ ]
 action:
+  # This log should appear every time any trigger fires and the automation action block is entered.
+  - service: system_log.write
+    data:
+      message: "Bambu Lab Spaghetti Detection: Automation action initiated by trigger ID '{{ trigger.id | default('unknown') }}'."
+      level: info
+    alias: Log Automation Action Start
   - choose:
+      # Handle Debug Trigger (HIGHEST PRIORITY among periodic triggers)
+      - conditions:
+          - condition: trigger
+            id: BAMBU_LAB_DEBUG_TRIGGER
+          - condition: template # Ensure debug mode is actually enabled
+            value_template: !input debug_mode_enabled # Make sure this is ON in the automation's UI
+        sequence:
+          - service: system_log.write # Log that debug trigger fired
+            data:
+              message: "Bambu Lab Spaghetti Detection: DEBUG MODE - Simulated detection triggered."
+              level: info
+            alias: Log Debug Trigger Activation
+          - service: camera.snapshot
+            target:
+              entity_id: !input printer_camera
+            data:
+              filename: "www/snapshots/bambu_lab_spaghetti_snapshot.jpg" # Use the same snapshot name
+            alias: Take Snapshot for DEBUG Notification
+          # Define a variable for the simulated confidence value first
+          # Use !input here as blueprint_input might not be available in this specific variables template context
+          - variables:
+              raw_debug_confidence_value: !input debug_simulated_confidence
+              # Fetch other blueprint inputs needed for the notification message
+              _input_timeout_minutes: !input timeout_minutes
+              _input_task_name_sensor: !input printer_task_name_sensor
+              _input_progress_sensor: !input printer_print_progress_sensor
+              _input_remaining_time_sensor: !input printer_remaining_time_sensor
+              # Define notification variables using local script variables
+              notification_title_var: "DEBUG: Simulated Spaghetti Detected"
+              disable_action_title_var: "Disable {{ _input_timeout_minutes }} min"
+              file_info_var: |
+                {% if _input_task_name_sensor != "" and states(_input_task_name_sensor) != "unknown" -%}
+                {{ "\n" }}File: {{ states(_input_task_name_sensor) }}
+                {%- endif %}
+              progress_info_var: |
+                {% if _input_progress_sensor != "" and states(_input_progress_sensor) != "unknown" -%}
+                {{ "\n" }}Progress: {{ states(_input_progress_sensor) }}%
+                {%- endif %}
+              remaining_time_info_var: |
+                {% if _input_remaining_time_sensor != "" and states(_input_remaining_time_sensor) != "unknown" -%}
+                {% set minutes = states(_input_remaining_time_sensor) | int(0) -%}
+                {% set days = (minutes // (24 * 60)) -%}
+                {% set hours = (minutes % (24 * 60)) // 60 -%}
+                {% set remaining_minutes = minutes % 60 -%}
+                {{ "\n" }}Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m
+                {%- endif %}
+          # Simulate a high confidence value by setting the normalized_p number helper
+          - service: number.set_value
+            target:
+              entity_id: number.bambu_lab_p1_spaghetti_detection_normalized_p
+            data:
+              value: "{{ (raw_debug_confidence_value | int(95)) / 100.0 }}" # Calculate using the script variable
+            alias: Set Simulated Confidence for DEBUG
+          # Log crucial variables before attempting notification
+          - service: system_log.write
+            data:
+              message: >
+                DEBUG Notification Prep: Title='DEBUG: Simulated Spaghetti Detected',
+                Notification Setting='{!input notification_settings}',
+                Notification Service='{!input notification_service}',
+                Debug Mode Input='{!input debug_mode_enabled}'
+              level: info
+          - choose: # Use the anchored choose content for notification
+              *notification_choose_anchor
+            alias: "Send DEBUG Notification"
+          # Update last notify time to respect cooldown for debug notifications too
+          - service: datetime.set_value
+            data: { datetime: "{{ now() }}" }
+            target: { entity_id: datetime.bambu_lab_p1_spaghetti_detection_last_notify_time }
+            alias: Update Last Notify Time (DEBUG)
+        alias: "Execute Debug Mode Simulated Detection"
+
       # Handle print start: Reset metrics and optionally turn on light.
       - conditions:
           - condition: trigger
@@ -871,75 +949,3 @@ action:
             # If none of the above conditions are met, do nothing in this cycle.
             default: []
             alias: "Main Threshold Decision Block"
-
-      # Handle Debug Trigger
-      - conditions:
-          - condition: trigger
-            id: BAMBU_LAB_DEBUG_TRIGGER
-          - condition: template # Ensure debug mode is actually enabled
-            value_template: !input debug_mode_enabled # Make sure this is ON in the automation's UI
-        sequence:
-          - service: system_log.write # Log that debug trigger fired
-            data:
-              message: "Bambu Lab Spaghetti Detection: DEBUG MODE - Simulated detection triggered."
-              level: info
-            alias: Log Debug Trigger Activation
-          - service: camera.snapshot
-            target:
-              entity_id: !input printer_camera
-            data:
-              filename: "www/snapshots/bambu_lab_spaghetti_snapshot.jpg" # Use the same snapshot name
-            alias: Take Snapshot for DEBUG Notification
-          # Define a variable for the simulated confidence value first
-          # Use !input here as blueprint_input might not be available in this specific variables template context
-          - variables:
-              raw_debug_confidence_value: !input debug_simulated_confidence
-              # Fetch other blueprint inputs needed for the notification message
-              _input_timeout_minutes: !input timeout_minutes
-              _input_task_name_sensor: !input printer_task_name_sensor
-              _input_progress_sensor: !input printer_print_progress_sensor
-              _input_remaining_time_sensor: !input printer_remaining_time_sensor
-              # Define notification variables using local script variables
-              notification_title_var: "DEBUG: Simulated Spaghetti Detected"
-              disable_action_title_var: "Disable {{ _input_timeout_minutes }} min"
-              file_info_var: |
-                {% if _input_task_name_sensor != "" and states(_input_task_name_sensor) != "unknown" -%}
-                {{ "\n" }}File: {{ states(_input_task_name_sensor) }}
-                {%- endif %}
-              progress_info_var: |
-                {% if _input_progress_sensor != "" and states(_input_progress_sensor) != "unknown" -%}
-                {{ "\n" }}Progress: {{ states(_input_progress_sensor) }}%
-                {%- endif %}
-              remaining_time_info_var: |
-                {% if _input_remaining_time_sensor != "" and states(_input_remaining_time_sensor) != "unknown" -%}
-                {% set minutes = states(_input_remaining_time_sensor) | int(0) -%}
-                {% set days = (minutes // (24 * 60)) -%}
-                {% set hours = (minutes % (24 * 60)) // 60 -%}
-                {% set remaining_minutes = minutes % 60 -%}
-                {{ "\n" }}Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m
-                {%- endif %}
-          # Simulate a high confidence value by setting the normalized_p number helper
-          - service: number.set_value
-            target:
-              entity_id: number.bambu_lab_p1_spaghetti_detection_normalized_p
-            data:
-              value: "{{ (raw_debug_confidence_value | int(95)) / 100.0 }}" # Calculate using the script variable
-            alias: Set Simulated Confidence for DEBUG
-          # Log crucial variables before attempting notification
-          - service: system_log.write
-            data:
-              message: >
-                DEBUG Notification Prep: Title='DEBUG: Simulated Spaghetti Detected',
-                Notification Setting='{!input notification_settings}',
-                Notification Service='{!input notification_service}',
-                Debug Mode Input='{!input debug_mode_enabled}'
-              level: info
-          - choose: # Use the anchored choose content for notification
-              *notification_choose_anchor
-            alias: "Send DEBUG Notification"
-          # Update last notify time to respect cooldown for debug notifications too
-          - service: datetime.set_value
-            data: { datetime: "{{ now() }}" }
-            target: { entity_id: datetime.bambu_lab_p1_spaghetti_detection_last_notify_time }
-            alias: Update Last Notify Time (DEBUG)
-        alias: "Execute Debug Mode Simulated Detection"
