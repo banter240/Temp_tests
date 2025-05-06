@@ -156,44 +156,44 @@ blueprint:
       description: >
         Confidence percentage (0-100%) above which a main failure action (Pause/Stop/Warn)
         and notification are triggered. This should be LESS THAN the Emergency Action Threshold (%).
-      default: 60
+      default: "50"
       selector:
         select:
           mode: dropdown
           options:
-            - { label: "30%", value: 30 }
-            - { label: "35%", value: 35 }
-            - { label: "40%", value: 40 }
-            - { label: "45%", value: 45 }
-            - { label: "50%", value: 50 }
-            - { label: "55%", value: 55 }
-            - { label: "60%", value: 60 }
-            - { label: "65%", value: 65 }
-            - { label: "70%", value: 70 }
-            - { label: "75%", value: 75 }
-            - { label: "80%", value: 80 }
-            - { label: "85%", value: 85 }
-            - { label: "90%", value: 90 }
-            - { label: "95%", value: 95 }
-            - { label: "100%", value: 100 }
+            - { label: "30%", value: "30" }
+            - { label: "35%", value: "35" }
+            - { label: "40%", value: "40" }
+            - { label: "45%", value: "45" }
+            - { label: "50%", value: "50" }
+            - { label: "55%", value: "55" }
+            - { label: "60%", value: "60" }
+            - { label: "65%", value: "65" }
+            - { label: "70%", value: "70" }
+            - { label: "75%", value: "75" }
+            - { label: "80%", value: "80" }
+            - { label: "85%", value: "85" }
+            - { label: "90%", value: "90" }
+            - { label: "95%", value: "95" }
+            - { label: "100%", value: "100" }
     emergency_action_threshold:
       name: Emergency Action Threshold (%)
       description: >
         Confidence percentage (0-100%) above which a failure action
         (Pause/Stop/Warn) and notification are triggered, EVEN IF a timeout is active.
         This should be HIGHER than the Failure Detection Threshold (%).
-      default: 90
+      default: "80"
       selector:
         select:
           mode: dropdown
           options:
-            - { label: "70%", value: 70 }
-            - { label: "75%", value: 75 }
-            - { label: "80%", value: 80 }
-            - { label: "85%", value: 85 }
-            - { label: "90%", value: 90 }
-            - { label: "95%", value: 95 }
-            - { label: "100%", value: 100 }
+            - { label: "70%", value: "70" }
+            - { label: "75%", value: "75" }
+            - { label: "80%", value: "80" }
+            - { label: "85%", value: "85" }
+            - { label: "90%", value: "90" }
+            - { label: "95%", value: "95" }
+            - { label: "100%", value: "100" }
     warn_below_failure_threshold:
       name: Enable Warning Below Failure Threshold
       description: >
