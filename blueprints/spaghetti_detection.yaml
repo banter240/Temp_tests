@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.30
+  name: Bambu Lab - Spaghetti Detection v1.31
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -245,7 +245,7 @@ variables:
               actions:
                 - { action: BAMBU_LAB_RESUME_PRINTING, title: Resume Printing }
                 - { action: BAMBU_LAB_STOP_PRINTING, title: Stop Printing }
-                - { action: BAMBU_LAB_DISABLE_DETECTION, title: "Disable {{ blueprint_input.timeout_minutes }} min" }
+                - { action: BAMBU_LAB_DISABLE_DETECTION, title: "{{ disable_action_title_var }}" } # Use a variable for the dynamic title
           alias: Send Critical Notification
     - conditions:
         - condition: template
@@ -260,7 +260,7 @@ variables:
               actions:
                 - { action: BAMBU_LAB_RESUME_PRINTING, title: Resume Printing }
                 - { action: BAMBU_LAB_STOP_PRINTING, title: Stop Printing }
-                - { action: BAMBU_LAB_DISABLE_DETECTION, title: "Disable {{ blueprint_input.timeout_minutes }} min" }
+                - { action: BAMBU_LAB_DISABLE_DETECTION, title: "{{ disable_action_title_var }}" } # Use a variable for the dynamic title
           alias: Send Standard Notification
 
 mode: single
@@ -614,7 +614,10 @@ action:
                   - condition: template
                     value_template: "{{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) >= (blueprint_input.emergency_action_threshold | int(0)) }}"
                 sequence:
-                  - variables: { notification_title_var: "Bambu Lab - EMERGENCY: Spaghetti Detected" }
+                  - variables:
+                      notification_title_var: "Bambu Lab - EMERGENCY: Spaghetti Detected"
+                      disable_action_title_var: "Disable {{ blueprint_input.timeout_minutes }} min"
+
                   - choose: # Use the anchored choose content
                       *action_choose_anchor # Printer action (pause/stop)
                     alias: "Execute Anchored Action Choose (Emergency)"
@@ -641,7 +644,9 @@ action:
                   - condition: template # 1-minute notification cooldown NOT active
                     value_template: "{{ not ((now() - (states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local) < timedelta(minutes=1))) }}"
                 sequence:
-                  - variables: { notification_title_var: "Bambu Lab - Spaghetti Detected" }
+                  - variables:
+                      notification_title_var: "Bambu Lab - Spaghetti Detected"
+                      disable_action_title_var: "Disable {{ blueprint_input.timeout_minutes }} min"
                   - choose: # Use the anchored choose content
                       *action_choose_anchor # Printer action (pause/stop)
                     alias: "Execute Anchored Action Choose (Main Failure)"
@@ -673,7 +678,9 @@ action:
                   - condition: template # 1-minute notification cooldown NOT active
                     value_template: "{{ not ((now() - (states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local) < timedelta(minutes=1))) }}"
                 sequence:
-                  - variables: { notification_title_var: "Bambu Lab - Potential Issue (Warning)" }
+                  - variables:
+                      notification_title_var: "Bambu Lab - Potential Issue (Warning)"
+                      disable_action_title_var: "Disable {{ blueprint_input.timeout_minutes }} min" # Also needed here for consistency if actions were added
                   # Only send notification, no printer action for this warning case
                   - choose: # Use the anchored choose content
                       *notification_choose_anchor # Notification
