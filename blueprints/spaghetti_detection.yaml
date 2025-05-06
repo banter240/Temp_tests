@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.32
+  name: Bambu Lab - Spaghetti Detection v1.36
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -13,6 +13,20 @@ blueprint:
     3. Ensure "Date and Time" is selected for the helper.
     4. Give it a name (e.g., "Spaghetti Detection Timeout Until").
     5. Select this newly created helper in the 'Detection Disable Datetime Helper' input field of this blueprint.
+
+    **Snapshot Setup for Notifications:**
+    This blueprint will take a camera snapshot to include in notifications.
+    Please ensure the directory `/config/www/snapshots/` exists in your Home Assistant configuration.
+    If it doesn't, please create it. Snapshots will be saved as `bambu_lab_spaghetti_snapshot.jpg` in this directory.
+    For enhanced notifications with print job details, configure the optional sensors below.
+
+    **Debug Mode:**
+    This blueprint includes a debug mode to test the notification workflow. When enabled, it will simulate
+    a detection event at a configurable interval and send a notification as if a failure was detected.
+
+    **Camera Setup Tips for Best Results:**
+    - Ensure your printer camera has a clear, well-lit, and stable view of the print bed.
+    - Good focus and consistent lighting are crucial for the ML model to perform optimally.
 
   domain: automation
   input:
@@ -201,6 +215,72 @@ blueprint:
       default: true
       selector:
         boolean:
+    initial_frames_to_skip:
+      name: Initial Frames to Skip
+      description: >
+        Number of initial detection frames to skip at the beginning of a print.
+        This can help avoid false positives while the first layers are still settling.
+      default: 30
+      selector:
+        number:
+          min: 0
+          max: 200
+          step: 1
+    # Debug Mode Inputs
+    debug_mode_enabled:
+      name: Enable Debug Mode
+      description: >
+        If enabled, simulates a detection event periodically to test the notification workflow.
+        No actual printer actions (pause/stop) will be performed in debug mode.
+      default: false
+      selector:
+        boolean:
+    debug_trigger_frequency:
+      name: Debug Trigger Frequency (seconds)
+      description: How often the debug mode should simulate a detection (in seconds).
+      default: 30
+      selector:
+        number:
+          min: 10 # Minimum 10 seconds to avoid excessive triggering
+          max: 300 # Maximum 5 minutes
+          step: 1
+    debug_simulated_confidence:
+      name: Debug Simulated Confidence (%)
+      description: The confidence percentage (0-100) to simulate in debug mode.
+      default: 95
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+    # Optional sensors for detailed notifications
+    printer_task_name_sensor:
+      name: (Optional) Printer Task Name Sensor
+      description: Sensor entity that shows the current print job's filename.
+      default: ""
+      selector:
+        entity:
+          filter:
+            - integration: bambu_lab
+              domain: sensor
+    printer_print_progress_sensor:
+      name: (Optional) Printer Print Progress Sensor
+      description: Sensor entity that shows the current print job's progress percentage.
+      default: ""
+      selector:
+        entity:
+          filter:
+            - integration: bambu_lab
+              domain: sensor
+    printer_remaining_time_sensor:
+      name: (Optional) Printer Remaining Time Sensor
+      description: Sensor entity that shows the remaining time for the current print job (in minutes).
+      default: ""
+      selector:
+        entity:
+          filter:
+            - integration: bambu_lab
+              domain: sensor
 variables:
   HOME_ASSISTANT_HOST_VAR: !input home_assistant_host
   PRINTER_CAMERA_VAR: !input printer_camera
@@ -234,10 +314,24 @@ variables:
       sequence:
         - service: !input notification_service
           data:
-            title: "{{ notification_title_var | default('') }}" # Use variable for title, default to empty if not set
-            message: "Confidence: {{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) | int }}%"
+            title: "{{ notification_title_var | default('') }}"
+            message: >
+              Confidence: {{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) | int }}%
+              {% if blueprint_input.printer_task_name_sensor != "" and states(blueprint_input.printer_task_name_sensor) != "unknown" %}
+              {{ "\n" }}File: {{ states(blueprint_input.printer_task_name_sensor) }}
+              {% endif %}
+              {% if blueprint_input.printer_print_progress_sensor != "" and states(blueprint_input.printer_print_progress_sensor) != "unknown" %}
+              {{ "\n" }}Progress: {{ states(blueprint_input.printer_print_progress_sensor) }}%
+              {% endif %}
+              {% if blueprint_input.printer_remaining_time_sensor != "" and states(blueprint_input.printer_remaining_time_sensor) != "unknown" %}
+              {% set minutes = states(blueprint_input.printer_remaining_time_sensor) | int(0) %}
+              {% set days = (minutes // (24 * 60)) %}
+              {% set hours = (minutes % (24 * 60)) // 60 %}
+              {% set remaining_minutes = minutes % 60 %}
+              {{ "\n" }}Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m
+              {% endif %}
             data:
-              image: "{{ HOME_ASSISTANT_HOST_VAR }}{{ state_attr(PRINTER_CAMERA_VAR, 'entity_picture') }}"
+              image: "{{ HOME_ASSISTANT_HOST_VAR }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg" # Use the taken snapshot
               ttl: 0
               priority: high
               channel: alarm_stream
@@ -253,10 +347,24 @@ variables:
       sequence:
         - service: !input notification_service
           data:
-            title: "{{ notification_title_var | default('') }}" # Use variable for title, default to empty if not set
-            message: "Confidence: {{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) | int }}%"
+            title: "{{ notification_title_var | default('') }}"
+            message: >
+              Confidence: {{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) | int }}%
+              {% if blueprint_input.printer_task_name_sensor != "" and states(blueprint_input.printer_task_name_sensor) != "unknown" %}
+              {{ "\n" }}File: {{ states(blueprint_input.printer_task_name_sensor) }}
+              {% endif %}
+              {% if blueprint_input.printer_print_progress_sensor != "" and states(blueprint_input.printer_print_progress_sensor) != "unknown" %}
+              {{ "\n" }}Progress: {{ states(blueprint_input.printer_print_progress_sensor) }}%
+              {% endif %}
+              {% if blueprint_input.printer_remaining_time_sensor != "" and states(blueprint_input.printer_remaining_time_sensor) != "unknown" %}
+              {% set minutes = states(blueprint_input.printer_remaining_time_sensor) | int(0) %}
+              {% set days = (minutes // (24 * 60)) %}
+              {% set hours = (minutes % (24 * 60)) // 60 %}
+              {% set remaining_minutes = minutes % 60 %}
+              {{ "\n" }}Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m
+              {% endif %}
             data:
-              image: "{{ HOME_ASSISTANT_HOST_VAR }}{{ state_attr(PRINTER_CAMERA_VAR, 'entity_picture') }}"
+              image: "{{ HOME_ASSISTANT_HOST_VAR }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg" # Use the taken snapshot
               actions:
                 - { action: BAMBU_LAB_RESUME_PRINTING, title: Resume Printing }
                 - { action: BAMBU_LAB_STOP_PRINTING, title: Stop Printing }
@@ -298,7 +406,13 @@ trigger:
   # Periodic trigger for running the detection logic.
   - platform: time_pattern
     id: BAMBU_LAB_DETECTION_TRIGGER
-    seconds: "/10" # Test: Hardcoded to trigger every 10 seconds
+    seconds: !input detection_frequency
+
+  # Optional trigger for debug mode
+  - platform: time_pattern
+    id: BAMBU_LAB_DEBUG_TRIGGER # Unique ID for the debug trigger
+    seconds: !input debug_trigger_frequency
+
 condition: [ ]
 action:
   - choose:
@@ -480,10 +594,10 @@ action:
               - if: # Skip processing for the first few frames as they might be unreliable.
                   - condition: numeric_state
                     entity_id: number.bambu_lab_p1_spaghetti_detection_current_frame_number
-                    below: 30
+                    below: !input initial_frames_to_skip
                 then:
                   - stop: ""
-                alias: "if current_frame_num < 30"
+                alias: "Skip initial frames"
 
               # Calculate adjusted EWM (Exponentially Weighted Moving Average)
               - service: number.set_value
@@ -614,6 +728,12 @@ action:
                   - condition: template
                     value_template: "{{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) >= (blueprint_input.emergency_action_threshold | int(0)) }}"
                 sequence:
+                  - service: camera.snapshot
+                    target:
+                      entity_id: !input printer_camera
+                    data:
+                      filename: "www/snapshots/bambu_lab_spaghetti_snapshot.jpg"
+                    alias: Take Snapshot for Emergency Notification
                   - variables:
                       notification_title_var: "Bambu Lab - EMERGENCY: Spaghetti Detected"
                       disable_action_title_var: "Disable {{ blueprint_input.timeout_minutes }} min"
@@ -644,6 +764,12 @@ action:
                   - condition: template # 1-minute notification cooldown NOT active
                     value_template: "{{ not ((now() - (states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local) < timedelta(minutes=1))) }}"
                 sequence:
+                  - service: camera.snapshot
+                    target:
+                      entity_id: !input printer_camera
+                    data:
+                      filename: "www/snapshots/bambu_lab_spaghetti_snapshot.jpg"
+                    alias: Take Snapshot for Main Failure Notification
                   - variables:
                       notification_title_var: "Bambu Lab - Spaghetti Detected"
                       disable_action_title_var: "Disable {{ blueprint_input.timeout_minutes }} min"
@@ -678,6 +804,12 @@ action:
                   - condition: template # 1-minute notification cooldown NOT active
                     value_template: "{{ not ((now() - (states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local) < timedelta(minutes=1))) }}"
                 sequence:
+                  - service: camera.snapshot
+                    target:
+                      entity_id: !input printer_camera
+                    data:
+                      filename: "www/snapshots/bambu_lab_spaghetti_snapshot.jpg"
+                    alias: Take Snapshot for Warning Notification
                   - variables:
                       notification_title_var: "Bambu Lab - Potential Issue (Warning)"
                       disable_action_title_var: "Disable {{ blueprint_input.timeout_minutes }} min" # Also needed here for consistency if actions were added
@@ -694,3 +826,41 @@ action:
             # If none of the above conditions are met, do nothing in this cycle.
             default: []
             alias: "Main Threshold Decision Block"
+
+      # Handle Debug Trigger
+      - conditions:
+          - condition: trigger
+            id: BAMBU_LAB_DEBUG_TRIGGER
+          - condition: template # Ensure debug mode is actually enabled
+            value_template: "{{ blueprint_input.debug_mode_enabled }}"
+        sequence:
+          - service: system_log.write # Log that debug trigger fired
+            data:
+              message: "Bambu Lab Spaghetti Detection: DEBUG MODE - Simulated detection triggered."
+              level: info
+            alias: Log Debug Trigger Activation
+          - service: camera.snapshot
+            target:
+              entity_id: !input printer_camera
+            data:
+              filename: "www/snapshots/bambu_lab_spaghetti_snapshot.jpg" # Use the same snapshot name
+            alias: Take Snapshot for DEBUG Notification
+          # Simulate a high confidence value by setting the normalized_p number helper
+          - service: number.set_value
+            target:
+              entity_id: number.bambu_lab_p1_spaghetti_detection_normalized_p
+            data:
+              value: "{{ (blueprint_input.debug_simulated_confidence | int(95)) / 100.0 }}" # Ensure float division
+            alias: Set Simulated Confidence for DEBUG
+          - variables:
+              notification_title_var: "DEBUG: Simulated Spaghetti Detected"
+              disable_action_title_var: "Disable {{ blueprint_input.timeout_minutes }} min"
+          - choose: # Use the anchored choose content for notification
+              *notification_choose_anchor
+            alias: "Send DEBUG Notification"
+          # Update last notify time to respect cooldown for debug notifications too
+          - service: datetime.set_value
+            data: { datetime: "{{ now() }}" }
+            target: { entity_id: datetime.bambu_lab_p1_spaghetti_detection_last_notify_time }
+            alias: Update Last Notify Time (DEBUG)
+        alias: "Execute Debug Mode Simulated Detection"
