@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.23
+  name: Bambu Lab - Spaghetti Detection v1.24
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -265,16 +265,6 @@ variables:
                 - { action: BAMBU_LAB_STOP_PRINTING, title: Stop Printing }
                 - { action: BAMBU_LAB_DISABLE_DETECTION, title: "Disable {{ blueprint_input.timeout_minutes }} min" }
           alias: Send Standard Notification
-
-  _resets_tail_sequence: &resets_tail_anchor # Common actions after a detection event.
-    - service: number.set_value # Reset all relevant detection metrics.
-      data: { value: 0 }
-      target: { entity_id: [number.bambu_lab_p1_spaghetti_detection_current_frame_number, number.bambu_lab_p1_spaghetti_detection_ewm_mean, number.bambu_lab_p1_spaghetti_detection_rolling_mean_short, number.bambu_lab_p1_spaghetti_detection_rolling_mean_long, number.bambu_lab_p1_spaghetti_detection_normalized_p, number.bambu_lab_p1_spaghetti_detection_adjusted_ewm_mean, number.bambu_lab_p1_spaghetti_detection_p_sum] }
-      alias: Reset Detection Metrics
-    - service: datetime.set_value # Update last notify time
-      data: { datetime: "{{ now() }}" }
-      target: { entity_id: datetime.bambu_lab_p1_spaghetti_detection_last_notify_time }
-      alias: Update Last Notify Time
 
 mode: single
 max_exceeded: silent
@@ -634,7 +624,15 @@ action:
                   - choose: # Use the anchored choose content
                       *notification_choose_anchor # Notification
                     alias: "Execute Anchored Notification Choose (Emergency)"
-                  - *resets_tail_anchor
+                  # Reset metrics and update last notify time
+                  - service: number.set_value # Reset all relevant detection metrics.
+                    data: { value: 0 }
+                    target: { entity_id: [number.bambu_lab_p1_spaghetti_detection_current_frame_number, number.bambu_lab_p1_spaghetti_detection_ewm_mean, number.bambu_lab_p1_spaghetti_detection_rolling_mean_short, number.bambu_lab_p1_spaghetti_detection_rolling_mean_long, number.bambu_lab_p1_spaghetti_detection_normalized_p, number.bambu_lab_p1_spaghetti_detection_adjusted_ewm_mean, number.bambu_lab_p1_spaghetti_detection_p_sum] }
+                    alias: Reset Detection Metrics
+                  - service: datetime.set_value # Update last notify time
+                    data: { datetime: "{{ now() }}" }
+                    target: { entity_id: datetime.bambu_lab_p1_spaghetti_detection_last_notify_time }
+                    alias: Update Last Notify Time
                 alias: "Execute Emergency Action Sequence"
 
               # Case 2: Main Failure Threshold Met (No Emergency, No active user Timeout, Not within 1-min cooldown)
@@ -653,7 +651,15 @@ action:
                   - choose: # Use the anchored choose content
                       *notification_choose_anchor # Notification
                     alias: "Execute Anchored Notification Choose (Main Failure)"
-                  - *resets_tail_anchor
+                  # Reset metrics and update last notify time
+                  - service: number.set_value # Reset all relevant detection metrics.
+                    data: { value: 0 }
+                    target: { entity_id: [number.bambu_lab_p1_spaghetti_detection_current_frame_number, number.bambu_lab_p1_spaghetti_detection_ewm_mean, number.bambu_lab_p1_spaghetti_detection_rolling_mean_short, number.bambu_lab_p1_spaghetti_detection_rolling_mean_long, number.bambu_lab_p1_spaghetti_detection_normalized_p, number.bambu_lab_p1_spaghetti_detection_adjusted_ewm_mean, number.bambu_lab_p1_spaghetti_detection_p_sum] }
+                    alias: Reset Detection Metrics
+                  - service: datetime.set_value # Update last notify time
+                    data: { datetime: "{{ now() }}" }
+                    target: { entity_id: datetime.bambu_lab_p1_spaghetti_detection_last_notify_time }
+                    alias: Update Last Notify Time
                 alias: "Execute Main Failure Action Sequence"
 
               # Case 3: Warn Below Failure Threshold (No Emergency, No active user Timeout, Not within 1-min cooldown, and relevant conditions met)
