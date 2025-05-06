@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.53
+  name: Bambu Lab - Spaghetti Detection v1.54
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -340,9 +340,9 @@ variables:
               {{- file_info_var | default('') -}}
               {{- progress_info_var | default('') -}}
               {{- remaining_time_info_var | default('') -}}
-              {{ "\n" }}Debug Img URL: {{ _effective_notification_host }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}
+              {{ "\n" }}Debug Img URL: {{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}
             data:
-              image: "{{ _effective_notification_host }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}" # Add cache buster
+              image: "{{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}" # Add cache buster
               ttl: 0
               priority: high
               channel: alarm_stream
@@ -364,9 +364,9 @@ variables:
               {{- file_info_var | default('') -}}
               {{- progress_info_var | default('') -}}
               {{- remaining_time_info_var | default('') -}}
-              {{ "\n" }}Debug Img URL: {{ _effective_notification_host }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}
+              {{ "\n" }}Debug Img URL: {{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}
             data:
-              image: "{{ _effective_notification_host }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}" # Add cache buster
+              image: "{{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}" # Add cache buster
               actions:
                 - { action: BAMBU_LAB_RESUME_PRINTING, title: Resume Printing }
                 - { action: BAMBU_LAB_STOP_PRINTING, title: Stop Printing }
