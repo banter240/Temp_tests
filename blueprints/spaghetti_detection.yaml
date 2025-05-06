@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.64
+  name: Bambu Lab - Spaghetti Detection v1.65
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -403,32 +403,6 @@ variables:
                 - { action: BAMBU_LAB_DISABLE_DETECTION, title: "{{ disable_action_title_var | default('Disable Detection') }}" }
           alias: Send Standard Notification
 
-  # --- Anchors for Notification Content Template Strings ---
-  _effective_notification_host_template_str: &effective_notification_host_template_str # Template to determine the host URL for notification images
-    "{{ resolved_ext_notify_host_input if resolved_ext_notify_host_input | string | trim != '' else resolved_ha_host_input }}"
-
-  _disable_action_title_template_str: &disable_action_title_template_str
-    "Disable {{ resolved_timeout_minutes_input }} min"
-
-  _file_info_content_template_str: &file_info_content_template_str >-
-    {%- if resolved_task_sensor_input != "" and states(resolved_task_sensor_input) != "unknown" and states(resolved_task_sensor_input) | trim != "" -%}
-    File: {{ states(resolved_task_sensor_input) }}
-    {%- else -%}{%- endif -%}
-
-  _progress_info_content_template_str: &progress_info_content_template_str >-
-    {%- if resolved_progress_sensor_input != "" and states(resolved_progress_sensor_input) != "unknown" and states(resolved_progress_sensor_input) | trim != "" -%}
-    Progress: {{ states(resolved_progress_sensor_input) }}%
-    {%- else -%}{%- endif -%}
-
-  _remaining_time_info_content_template_str: &remaining_time_info_content_template_str >-
-    {%- if resolved_remaining_sensor_input != "" and states(resolved_remaining_sensor_input) != "unknown" and states(resolved_remaining_sensor_input) | trim != "" -%}
-    {% set minutes = states(resolved_remaining_sensor_input) | int(0) -%}
-    {% set days = (minutes // (24 * 60)) -%}
-    {% set hours = (minutes % (24 * 60)) // 60 -%}
-    {% set remaining_minutes = minutes % 60 -%}
-    Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m
-    {%- else -%}{%- endif -%}
-
 mode: single
 max_exceeded: silent
 trigger:
@@ -519,11 +493,24 @@ action: # Main automation actions
               resolved_ha_host_input: !input home_assistant_host
 
               # Define notification content variables directly
-              _effective_notification_host: "{{ template(_effective_notification_host_template_str) }}"
-              disable_action_title_var: "{{ template(_disable_action_title_template_str) }}"
-              _file_info_content: "{{ template(_file_info_content_template_str) }}"
-              _progress_info_content: "{{ template(_progress_info_content_template_str) }}"
-              _remaining_time_info_content: "{{ template(_remaining_time_info_content_template_str) }}"
+              _effective_notification_host: "{{ resolved_ext_notify_host_input if resolved_ext_notify_host_input | string | trim != '' else resolved_ha_host_input }}"
+              disable_action_title_var: "Disable {{ resolved_timeout_minutes_input }} min"
+              _file_info_content: >-
+                {%- if resolved_task_sensor_input != "" and states(resolved_task_sensor_input) != "unknown" and states(resolved_task_sensor_input) | trim != "" -%}
+                File: {{ states(resolved_task_sensor_input) }}
+                {%- else -%}{%- endif -%}
+              _progress_info_content: >-
+                {%- if resolved_progress_sensor_input != "" and states(resolved_progress_sensor_input) != "unknown" and states(resolved_progress_sensor_input) | trim != "" -%}
+                Progress: {{ states(resolved_progress_sensor_input) }}%
+                {%- else -%}{%- endif -%}
+              _remaining_time_info_content: >-
+                {%- if resolved_remaining_sensor_input != "" and states(resolved_remaining_sensor_input) != "unknown" and states(resolved_remaining_sensor_input) | trim != "" -%}
+                {% set minutes = states(resolved_remaining_sensor_input) | int(0) -%}
+                {% set days = (minutes // (24 * 60)) -%}
+                {% set hours = (minutes % (24 * 60)) // 60 -%}
+                {% set remaining_minutes = minutes % 60 -%}
+                Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m
+                {%- else -%}{%- endif -%}
           # Simulate a high confidence value by setting the normalized_p number helper
           - service: number.set_value
             target:
@@ -912,11 +899,24 @@ action: # Main automation actions
                       resolved_ha_host_input: !input home_assistant_host
 
                       # Define notification content variables directly
-                      _effective_notification_host: "{{ template(_effective_notification_host_template_str) }}"
-                      disable_action_title_var: "{{ template(_disable_action_title_template_str) }}"
-                      _file_info_content: "{{ template(_file_info_content_template_str) }}"
-                      _progress_info_content: "{{ template(_progress_info_content_template_str) }}"
-                      _remaining_time_info_content: "{{ template(_remaining_time_info_content_template_str) }}"
+                      _effective_notification_host: "{{ resolved_ext_notify_host_input if resolved_ext_notify_host_input | string | trim != '' else resolved_ha_host_input }}"
+                      disable_action_title_var: "Disable {{ resolved_timeout_minutes_input }} min"
+                      _file_info_content: >-
+                        {%- if resolved_task_sensor_input != "" and states(resolved_task_sensor_input) != "unknown" and states(resolved_task_sensor_input) | trim != "" -%}
+                        File: {{ states(resolved_task_sensor_input) }}
+                        {%- else -%}{%- endif -%}
+                      _progress_info_content: >-
+                        {%- if resolved_progress_sensor_input != "" and states(resolved_progress_sensor_input) != "unknown" and states(resolved_progress_sensor_input) | trim != "" -%}
+                        Progress: {{ states(resolved_progress_sensor_input) }}%
+                        {%- else -%}{%- endif -%}
+                      _remaining_time_info_content: >-
+                        {%- if resolved_remaining_sensor_input != "" and states(resolved_remaining_sensor_input) != "unknown" and states(resolved_remaining_sensor_input) | trim != "" -%}
+                        {% set minutes = states(resolved_remaining_sensor_input) | int(0) -%}
+                        {% set days = (minutes // (24 * 60)) -%}
+                        {% set hours = (minutes % (24 * 60)) // 60 -%}
+                        {% set remaining_minutes = minutes % 60 -%}
+                        Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m
+                        {%- else -%}{%- endif -%}
                   - choose: # Use the anchored choose content
                       *action_choose_anchor # Printer action (pause/stop)
                     alias: "Execute Anchored Action Choose (Emergency)"
@@ -990,11 +990,24 @@ action: # Main automation actions
                       resolved_ha_host_input: !input home_assistant_host
 
                       # Define notification content variables directly
-                      _effective_notification_host: "{{ template(_effective_notification_host_template_str) }}"
-                      disable_action_title_var: "{{ template(_disable_action_title_template_str) }}"
-                      _file_info_content: "{{ template(_file_info_content_template_str) }}"
-                      _progress_info_content: "{{ template(_progress_info_content_template_str) }}"
-                      _remaining_time_info_content: "{{ template(_remaining_time_info_content_template_str) }}"
+                      _effective_notification_host: "{{ resolved_ext_notify_host_input if resolved_ext_notify_host_input | string | trim != '' else resolved_ha_host_input }}"
+                      disable_action_title_var: "Disable {{ resolved_timeout_minutes_input }} min"
+                      _file_info_content: >-
+                        {%- if resolved_task_sensor_input != "" and states(resolved_task_sensor_input) != "unknown" and states(resolved_task_sensor_input) | trim != "" -%}
+                        File: {{ states(resolved_task_sensor_input) }}
+                        {%- else -%}{%- endif -%}
+                      _progress_info_content: >-
+                        {%- if resolved_progress_sensor_input != "" and states(resolved_progress_sensor_input) != "unknown" and states(resolved_progress_sensor_input) | trim != "" -%}
+                        Progress: {{ states(resolved_progress_sensor_input) }}%
+                        {%- else -%}{%- endif -%}
+                      _remaining_time_info_content: >-
+                        {%- if resolved_remaining_sensor_input != "" and states(resolved_remaining_sensor_input) != "unknown" and states(resolved_remaining_sensor_input) | trim != "" -%}
+                        {% set minutes = states(resolved_remaining_sensor_input) | int(0) -%}
+                        {% set days = (minutes // (24 * 60)) -%}
+                        {% set hours = (minutes % (24 * 60)) // 60 -%}
+                        {% set remaining_minutes = minutes % 60 -%}
+                        Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m
+                        {%- else -%}{%- endif -%}
                   - choose: # Use the anchored choose content
                       *action_choose_anchor # Printer action (pause/stop)
                     alias: "Execute Anchored Action Choose (Main Failure)"
@@ -1073,11 +1086,24 @@ action: # Main automation actions
                       resolved_ha_host_input: !input home_assistant_host
 
                       # Define notification content variables directly
-                      _effective_notification_host: "{{ template(_effective_notification_host_template_str) }}"
-                      disable_action_title_var: "{{ template(_disable_action_title_template_str) }}"
-                      _file_info_content: "{{ template(_file_info_content_template_str) }}"
-                      _progress_info_content: "{{ template(_progress_info_content_template_str) }}"
-                      _remaining_time_info_content: "{{ template(_remaining_time_info_content_template_str) }}"
+                      _effective_notification_host: "{{ resolved_ext_notify_host_input if resolved_ext_notify_host_input | string | trim != '' else resolved_ha_host_input }}"
+                      disable_action_title_var: "Disable {{ resolved_timeout_minutes_input }} min"
+                      _file_info_content: >-
+                        {%- if resolved_task_sensor_input != "" and states(resolved_task_sensor_input) != "unknown" and states(resolved_task_sensor_input) | trim != "" -%}
+                        File: {{ states(resolved_task_sensor_input) }}
+                        {%- else -%}{%- endif -%}
+                      _progress_info_content: >-
+                        {%- if resolved_progress_sensor_input != "" and states(resolved_progress_sensor_input) != "unknown" and states(resolved_progress_sensor_input) | trim != "" -%}
+                        Progress: {{ states(resolved_progress_sensor_input) }}%
+                        {%- else -%}{%- endif -%}
+                      _remaining_time_info_content: >-
+                        {%- if resolved_remaining_sensor_input != "" and states(resolved_remaining_sensor_input) != "unknown" and states(resolved_remaining_sensor_input) | trim != "" -%}
+                        {% set minutes = states(resolved_remaining_sensor_input) | int(0) -%}
+                        {% set days = (minutes // (24 * 60)) -%}
+                        {% set hours = (minutes % (24 * 60)) // 60 -%}
+                        {% set remaining_minutes = minutes % 60 -%}
+                        Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m
+                        {%- else -%}{%- endif -%}
                   # Only send notification, no printer action for this warning case
                   - choose: # Use the anchored choose content
                       *notification_choose_anchor # Notification
