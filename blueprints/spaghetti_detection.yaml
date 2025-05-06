@@ -218,64 +218,65 @@ variables:
   _action_choose_sequence: &action_choose_anchor
     # Sequence block containing the Action Choose block (Pause/Stop/Warn)
     # This is only executed if FAILURE_ACTION_VAR is 'pause' or 'stop'.
-    # If 'warn', this block effectively does nothing.
-    choose:
-      - conditions: # Pause Action
-          - condition: template
-            value_template: "{{ FAILURE_ACTION_VAR == 'pause' }}"
-        sequence:
-          - service: button.press
-            target: { entity_id: !input printer_pause_button }
-            alias: Execute Pause Action
-      - conditions: # Stop Action
-          - condition: template
-            value_template: "{{ FAILURE_ACTION_VAR == 'stop' }}"
-        sequence:
-          - service: button.press
-            target: { entity_id: !input printer_stop_button }
-            alias: Execute Stop Action
-    alias: Choose and Execute Printer Failure Action
+    # If 'warn', this sequence effectively does nothing if called directly.
+    # This anchor now represents the *content* of a choose action.
+    - conditions: # Pause Action
+        - condition: template
+          value_template: "{{ FAILURE_ACTION_VAR == 'pause' }}"
+      sequence:
+        - service: button.press
+          target: { entity_id: !input printer_pause_button }
+          alias: Execute Pause Action
+    - conditions: # Stop Action
+        - condition: template
+          value_template: "{{ FAILURE_ACTION_VAR == 'stop' }}"
+      sequence:
+        - service: button.press
+          target: { entity_id: !input printer_stop_button }
+          alias: Execute Stop Action
+    # No default action defined here, can be added if needed for this specific choose
+    alias: "Choose and Execute Printer Failure Action" # Alias for this choose action
 
   _notification_choose_sequence: &notification_choose_anchor
     # Sequence block containing the Notification Choose block (Critical/Standard).
     # Requires 'notification_title_var' variable to be set before calling this anchor.
-    choose:
-      - conditions:
-          - condition: template
-            value_template: "{{ NOTIFICATION_SETTINGS_VAR == 'critical' }}"
-        sequence:
-          - service: !input notification_service
+    # This anchor now represents the *content* of a choose action.
+    - conditions:
+        - condition: template
+          value_template: "{{ NOTIFICATION_SETTINGS_VAR == 'critical' }}"
+      sequence:
+        - service: !input notification_service
+          data:
+            title: "{{ notification_title_var }}" # Use variable for title
+            message: "Confidence: {{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) | int }}%"
             data:
-              title: "{{ notification_title_var }}" # Use variable for title
-              message: "Confidence: {{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) | int }}%"
-              data:
-                image: "{{ HOME_ASSISTANT_HOST_VAR }}{{ state_attr(PRINTER_CAMERA_VAR, 'entity_picture') }}"
-                ttl: 0
-                priority: high
-                channel: alarm_stream
-                push: { sound: { name: default, critical: 1, volume: 0.75 } }
-                actions:
-                  - { action: BAMBU_LAB_RESUME_PRINTING, title: Resume Printing }
-                  - { action: BAMBU_LAB_STOP_PRINTING, title: Stop Printing }
-                  - { action: BAMBU_LAB_DISABLE_DETECTION, title: "Disable {{ !input timeout_minutes }} min" }
-            alias: Send Critical Notification
-      - conditions:
-          - condition: template
-            value_template: "{{ NOTIFICATION_SETTINGS_VAR == 'standard' }}"
-        sequence:
-          - service: !input notification_service
+              image: "{{ HOME_ASSISTANT_HOST_VAR }}{{ state_attr(PRINTER_CAMERA_VAR, 'entity_picture') }}"
+              ttl: 0
+              priority: high
+              channel: alarm_stream
+              push: { sound: { name: default, critical: 1, volume: 0.75 } }
+              actions:
+                - { action: BAMBU_LAB_RESUME_PRINTING, title: Resume Printing }
+                - { action: BAMBU_LAB_STOP_PRINTING, title: Stop Printing }
+                - { action: BAMBU_LAB_DISABLE_DETECTION, title: "Disable {{ !input timeout_minutes }} min" }
+          alias: Send Critical Notification
+    - conditions:
+        - condition: template
+          value_template: "{{ NOTIFICATION_SETTINGS_VAR == 'standard' }}"
+      sequence:
+        - service: !input notification_service
+          data:
+            title: "{{ notification_title_var }}" # Use variable for title
+            message: "Confidence: {{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) | int }}%"
             data:
-              title: "{{ notification_title_var }}" # Use variable for title
-              message: "Confidence: {{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) | int }}%"
-              data:
-                image: "{{ HOME_ASSISTANT_HOST_VAR }}{{ state_attr(PRINTER_CAMERA_VAR, 'entity_picture') }}"
-                actions:
-                  - { action: BAMBU_LAB_RESUME_PRINTING, title: Resume Printing }
-                  - { action: BAMBU_LAB_STOP_PRINTING, title: Stop Printing }
-                  - { action: BAMBU_LAB_DISABLE_DETECTION, title: "Disable {{ !input timeout_minutes }} min" }
-            alias: Send Standard Notification
-      default: [] # If Notification Settings is 'none'
-    alias: Choose and Send Notification
+              image: "{{ HOME_ASSISTANT_HOST_VAR }}{{ state_attr(PRINTER_CAMERA_VAR, 'entity_picture') }}"
+              actions:
+                - { action: BAMBU_LAB_RESUME_PRINTING, title: Resume Printing }
+                - { action: BAMBU_LAB_STOP_PRINTING, title: Stop Printing }
+                - { action: BAMBU_LAB_DISABLE_DETECTION, title: "Disable {{ !input timeout_minutes }} min" }
+          alias: Send Standard Notification
+    default: [] # If Notification Settings is 'none'
+    alias: "Choose and Send Notification" # Alias for this choose action
 
   _resets_tail_sequence: &resets_tail_anchor
     # Sequence block containing the metric resets + last notify time update.
@@ -635,8 +636,12 @@ action:
                   alias: "Confidence >= Emergency Threshold"
                 sequence:
                   - variables: { notification_title_var: "Bambu Lab - EMERGENCY: Spaghetti Detected" }
-                  - *action_choose_anchor
-                  - *notification_choose_anchor
+                  - choose: # Use the anchored choose content
+                      *action_choose_anchor
+                    alias: "Execute Anchored Action Choose (Emergency)" # Optional alias for this specific use
+                  - choose: # Use the anchored choose content
+                      *notification_choose_anchor
+                    alias: "Execute Anchored Notification Choose (Emergency)" # Optional alias for this specific use
                   - *resets_tail_anchor
                 alias: "Execute Emergency Action Sequence"
 
@@ -651,8 +656,12 @@ action:
                   alias: "Confidence >= Min. Failure Threshold (No Timeout/Cooldown)"
                 sequence:
                   - variables: { notification_title_var: "Bambu Lab - Spaghetti Detected" }
-                  - *action_choose_anchor
-                  - *notification_choose_anchor
+                  - choose: # Use the anchored choose content
+                      *action_choose_anchor
+                    alias: "Execute Anchored Action Choose (Main Failure)" # Optional alias
+                  - choose: # Use the anchored choose content
+                      *notification_choose_anchor
+                    alias: "Execute Anchored Notification Choose (Main Failure)" # Optional alias
                   - *resets_tail_anchor
                 alias: "Execute Main Failure Action Sequence"
 
@@ -673,7 +682,9 @@ action:
                 sequence:
                   - variables: { notification_title_var: "Bambu Lab - Potential Issue (Warning)" }
                   # NO *action_choose_anchor here, only notification
-                  - *notification_choose_anchor
+                  - choose: # Use the anchored choose content
+                      *notification_choose_anchor
+                    alias: "Execute Anchored Notification Choose (Warning)" # Optional alias
                   # Only update last_notify_time, do not reset all detection metrics for a simple warning
                   - service: datetime.set_value
                     data: { datetime: "{{ now() }}" }
