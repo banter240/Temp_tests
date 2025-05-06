@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.42-debugtest
+  name: Bambu Lab - Spaghetti Detection v1.43
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -876,8 +876,8 @@ action:
       - conditions:
           - condition: trigger
             id: BAMBU_LAB_DEBUG_TRIGGER
-          # - condition: template # Ensure debug mode is actually enabled --- TEMPORARILY COMMENTED OUT FOR TESTING
-          #   value_template: !input debug_mode_enabled
+          - condition: template # Ensure debug mode is actually enabled
+            value_template: !input debug_mode_enabled # Make sure this is ON in the automation's UI
         sequence:
           - service: system_log.write # Log that debug trigger fired
             data:
@@ -925,6 +925,15 @@ action:
             data:
               value: "{{ (raw_debug_confidence_value | int(95)) / 100.0 }}" # Calculate using the script variable
             alias: Set Simulated Confidence for DEBUG
+          # Log crucial variables before attempting notification
+          - service: system_log.write
+            data:
+              message: >
+                DEBUG Notification Prep: Title='DEBUG: Simulated Spaghetti Detected',
+                Notification Setting='{!input notification_settings}',
+                Notification Service='{!input notification_service}',
+                Debug Mode Input='{!input debug_mode_enabled}'
+              level: info
           - choose: # Use the anchored choose content for notification
               *notification_choose_anchor
             alias: "Send DEBUG Notification"
