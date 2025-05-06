@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.51
+  name: Bambu Lab - Spaghetti Detection v1.52
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -21,11 +21,14 @@ blueprint:
     2. Snapshots will be saved by the `camera.snapshot` service to `www/snapshots/bambu_lab_spaghetti_snapshot.jpg`
        (which corresponds to the path `/config/www/snapshots/bambu_lab_spaghetti_snapshot.jpg` on your server).
     3. The notification will then attempt to load the image via the URL `YOUR_HA_HOST/local/snapshots/bambu_lab_spaghetti_snapshot.jpg`.
-    **VERY IMPORTANT:** The 'Home Assistant Host' input (configured when you create an automation from this blueprint)
-    **MUST** be set to your **externally accessible Home Assistant URL** (e.g., your Nabu Casa URL or your own
-    reverse proxy URL like `https://your.domain.com`) for images in notifications to work when your phone is not on your local Wi-Fi.
-    A local IP address (e.g., `http://192.168.x.x:8123`) will **NOT** work for external access.
-    For enhanced notifications with print job details, configure the optional sensors below.
+
+    **URL Configuration for Notification Images:**
+    - The 'Home Assistant Host' input is used by default for constructing image URLs in notifications and for the Obico API call.
+    - If your 'Home Assistant Host' is an internal URL (e.g., `http://192.168.x.x:8123`), images in notifications will
+      likely only work when your phone is on your local Wi-Fi.
+    - To ensure images work externally, use the **'External Notification Host URL (Optional)'** input below to provide
+      your externally accessible Home Assistant URL (e.g., Nabu Casa URL or your own reverse proxy URL).
+      If this field is filled, it will be prioritized for notification images.
 
     **Debug Mode:**
     This blueprint includes a debug mode to test the notification workflow. When enabled, it will simulate
@@ -39,8 +42,18 @@ blueprint:
   input:
     home_assistant_host:
       name: Home Assistant Host
-      description: Home Assistant host
-      default: "http://192.168.1.123:8123"
+      description: >-
+        Your Home Assistant's base URL (e.g., http://192.168.1.123:8123 or https://your.external.url).
+        This is used for the Obico API call (if it needs to fetch the camera image) and as a fallback for notification images.
+        If your Obico instance is external, this URL might need to be externally accessible.
+      default: "http://192.168.1.123:8123" # Default to a common local IP structure
+    external_notification_host_url:
+      name: External Notification Host URL (Optional)
+      description: >-
+        Your EXTERNALLY accessible Home Assistant URL (e.g., Nabu Casa URL or https://your.domain.com).
+        If provided, this URL will be used for images in mobile notifications, overriding 'Home Assistant Host' for this purpose.
+        Leave blank to use the 'Home Assistant Host' value for notification images.
+      default: "" # Default to empty, so home_assistant_host is used unless specified
     obico_host:
       name: Obico ML API Host
       description: Obico ML API host
@@ -327,9 +340,9 @@ variables:
               {{- file_info_var | default('') -}}
               {{- progress_info_var | default('') -}}
               {{- remaining_time_info_var | default('') -}}
-              {{ "\n" }}Debug Img URL: {{ HOME_ASSISTANT_HOST_VAR }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}
+              {{ "\n" }}Debug Img URL: {{ _effective_notification_host }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}
             data:
-              image: "{{ HOME_ASSISTANT_HOST_VAR }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}" # Add cache buster
+              image: "{{ _effective_notification_host }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}" # Add cache buster
               ttl: 0
               priority: high
               channel: alarm_stream
@@ -351,9 +364,9 @@ variables:
               {{- file_info_var | default('') -}}
               {{- progress_info_var | default('') -}}
               {{- remaining_time_info_var | default('') -}}
-              {{ "\n" }}Debug Img URL: {{ HOME_ASSISTANT_HOST_VAR }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}
+              {{ "\n" }}Debug Img URL: {{ _effective_notification_host }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}
             data:
-              image: "{{ HOME_ASSISTANT_HOST_VAR }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}" # Add cache buster
+              image: "{{ _effective_notification_host }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}" # Add cache buster
               actions:
                 - { action: BAMBU_LAB_RESUME_PRINTING, title: Resume Printing }
                 - { action: BAMBU_LAB_STOP_PRINTING, title: Stop Printing }
@@ -445,6 +458,8 @@ action:
               _input_task_name_sensor: !input printer_task_name_sensor
               _input_progress_sensor: !input printer_print_progress_sensor
               _input_remaining_time_sensor: !input printer_remaining_time_sensor
+              # Determine the host URL to use for notification images
+              _effective_notification_host: "{{ !input external_notification_host_url if !input external_notification_host_url | string | trim != '' else !input home_assistant_host }}"
               # Define notification variables using local script variables
               notification_title_var: "DEBUG: Simulated Spaghetti Detected"
               disable_action_title_var: "Disable {{ _input_timeout_minutes }} min"
@@ -478,7 +493,7 @@ action:
                 DEBUG Notification Prep: Title='DEBUG: Simulated Spaghetti Detected',
                 Notification Setting='{!input notification_settings}', Service='{!input notification_service}',
                 Debug Mode Input='{!input debug_mode_enabled}',
-                Image URL='{{ HOME_ASSISTANT_HOST_VAR }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}'
+                Image URL='{{ _effective_notification_host }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}'
               level: warning # Test: Changed to warning to ensure visibility
             alias: Log Debug Notification Prep
           # --- SIMPLIFIED DEBUG NOTIFICATION TEST ---
@@ -487,7 +502,7 @@ action:
               title: "DEBUG: Image Test"
               message: "Attempting to send image via internal URL. See log for URL."
               data: # Nested data for mobile_app specifics
-                image: "{{ HOME_ASSISTANT_HOST_VAR }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}"
+                image: "{{ _effective_notification_host }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}"
                 # Optional: For critical notifications on Android, a channel might be needed.
                 # You can try adding a channel if your 'critical' setting normally uses one.
                 # channel: "alarm_stream" # Example, if you use this for critical
@@ -834,6 +849,8 @@ action:
                       _input_task_name_sensor: !input printer_task_name_sensor
                       _input_progress_sensor: !input printer_print_progress_sensor
                       _input_remaining_time_sensor: !input printer_remaining_time_sensor
+                      # Determine the host URL to use for notification images
+                      _effective_notification_host: "{{ !input external_notification_host_url if !input external_notification_host_url | string | trim != '' else !input home_assistant_host }}"
                       # Define notification variables using local script variables
                       notification_title_var: "Bambu Lab - EMERGENCY: Spaghetti Detected"
                       disable_action_title_var: "Disable {{ _input_timeout_minutes }} min"
@@ -898,6 +915,8 @@ action:
                       _input_task_name_sensor: !input printer_task_name_sensor
                       _input_progress_sensor: !input printer_print_progress_sensor
                       _input_remaining_time_sensor: !input printer_remaining_time_sensor
+                      # Determine the host URL to use for notification images
+                      _effective_notification_host: "{{ !input external_notification_host_url if !input external_notification_host_url | string | trim != '' else !input home_assistant_host }}"
                       # Define notification variables using local script variables
                       notification_title_var: "Bambu Lab - Spaghetti Detected"
                       disable_action_title_var: "Disable {{ _input_timeout_minutes }} min"
@@ -967,6 +986,8 @@ action:
                       _input_task_name_sensor: !input printer_task_name_sensor
                       _input_progress_sensor: !input printer_print_progress_sensor
                       _input_remaining_time_sensor: !input printer_remaining_time_sensor
+                      # Determine the host URL to use for notification images
+                      _effective_notification_host: "{{ !input external_notification_host_url if !input external_notification_host_url | string | trim != '' else !input home_assistant_host }}"
                       # Define notification variables using local script variables
                       notification_title_var: "Bambu Lab - Potential Issue (Warning)"
                       disable_action_title_var: "Disable {{ _input_timeout_minutes }} min" # Also needed here for consistency if actions were added
