@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.26
+  name: Bambu Lab - Spaghetti Detection v1.27
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -300,7 +300,7 @@ trigger:
       action: BAMBU_LAB_DISABLE_DETECTION
 
   # Periodic trigger for running the detection logic.
-  - trigger: time_pattern
+  - platform: time_pattern
     id: BAMBU_LAB_DETECTION_TRIGGER
     seconds: !input detection_frequency
 condition: [ ]
