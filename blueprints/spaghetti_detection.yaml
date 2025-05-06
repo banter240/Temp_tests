@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.58
+  name: Bambu Lab - Spaghetti Detection v1.59
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -351,14 +351,14 @@ variables:
             title: "{{ notification_title_var | default('') }}" # This title is set by the calling sequence
             message: |
               Confidence: {{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) | int }}%
-              {% if _file_info_content | trim != "" -%}
-              {{ _file_info_content }}
+              {% if _file_info_content | default('') | trim != "" -%}
+              {{ _file_info_content | default('') }}
               {% endif -%}
-              {% if _progress_info_content | trim != "" -%}
-              {{ _progress_info_content }}
+              {% if _progress_info_content | default('') | trim != "" -%}
+              {{ _progress_info_content | default('') }}
               {% endif -%}
-              {% if _remaining_time_info_content | trim != "" -%}
-              {{ _remaining_time_info_content }}
+              {% if _remaining_time_info_content | default('') | trim != "" -%}
+              {{ _remaining_time_info_content | default('') }}
               {% endif -%}
               {# {{ "\n" }}Debug Img URL: {{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }} #}
             data:
@@ -370,7 +370,7 @@ variables:
               actions:
                 - { action: BAMBU_LAB_RESUME_PRINTING, title: Resume Printing }
                 - { action: BAMBU_LAB_STOP_PRINTING, title: Stop Printing }
-                - { action: BAMBU_LAB_DISABLE_DETECTION, title: "{{ disable_action_title_var | default('') }}" } # Use a variable, default to empty
+                - { action: BAMBU_LAB_DISABLE_DETECTION, title: "{{ disable_action_title_var | default('Disable Detection') }}" }
           alias: Send Critical Notification
     - conditions:
         - condition: template
@@ -381,14 +381,14 @@ variables:
             title: "{{ notification_title_var | default('') }}" # This title is set by the calling sequence
             message: |
               Confidence: {{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) | int }}%
-              {% if _file_info_content | trim != "" -%}
-              {{ _file_info_content }}
+              {% if _file_info_content | default('') | trim != "" -%}
+              {{ _file_info_content | default('') }}
               {% endif -%}
-              {% if _progress_info_content | trim != "" -%}
-              {{ _progress_info_content }}
+              {% if _progress_info_content | default('') | trim != "" -%}
+              {{ _progress_info_content | default('') }}
               {% endif -%}
-              {% if _remaining_time_info_content | trim != "" -%}
-              {{ _remaining_time_info_content }}
+              {% if _remaining_time_info_content | default('') | trim != "" -%}
+              {{ _remaining_time_info_content | default('') }}
               {% endif -%}
               {# {{ "\n" }}Debug Img URL: {{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }} #}
             data:
@@ -396,34 +396,28 @@ variables:
               actions:
                 - { action: BAMBU_LAB_RESUME_PRINTING, title: Resume Printing }
                 - { action: BAMBU_LAB_STOP_PRINTING, title: Stop Printing }
-                - { action: BAMBU_LAB_DISABLE_DETECTION, title: "{{ disable_action_title_var | default('') }}" } # Use a variable, default to empty
+                - { action: BAMBU_LAB_DISABLE_DETECTION, title: "{{ disable_action_title_var | default('Disable Detection') }}" }
           alias: Send Standard Notification
 
-  _prepare_common_notification_vars: &prepare_common_notification_vars
-    # This anchor defines common variables needed for notifications.
-    # It expects '_input_timeout_minutes' etc. to be set if used by a calling template,
-    # or for the !input tags to resolve correctly in the context where this is merged.
-    _input_timeout_minutes: !input timeout_minutes
-    _input_task_name_sensor: !input printer_task_name_sensor
-    _input_progress_sensor: !input printer_print_progress_sensor
-    _input_remaining_time_sensor: !input printer_remaining_time_sensor
-    _local_external_notification_host_url: !input external_notification_host_url
-    _local_home_assistant_host: !input home_assistant_host
-    _effective_notification_host: "{{ _local_external_notification_host_url if _local_external_notification_host_url | string | trim != '' else _local_home_assistant_host }}"
-    disable_action_title_var: "Disable {{ _input_timeout_minutes }} min"
+  _define_notification_message_parts: &define_notification_message_parts
+    # This anchor defines template strings for notification parts.
+    # It expects variables like 'resolved_task_sensor_input', 'resolved_timeout_minutes_input', etc.
+    # to be defined in the scope where this anchor is merged.
+    _effective_notification_host: "{{ resolved_ext_notify_host_input if resolved_ext_notify_host_input | string | trim != '' else resolved_ha_host_input }}"
+    disable_action_title_var: "Disable {{ resolved_timeout_minutes_input }} min"
     # These variables will produce a single line of text or an empty string.
     # Newlines are handled by the main message template structure.
     _file_info_content: >-
-      {%- if _input_task_name_sensor != "" and states(_input_task_name_sensor) != "unknown" and states(_input_task_name_sensor) | trim != "" -%}
-      File: {{ states(_input_task_name_sensor) }}
+      {%- if resolved_task_sensor_input != "" and states(resolved_task_sensor_input) != "unknown" and states(resolved_task_sensor_input) | trim != "" -%}
+      File: {{ states(resolved_task_sensor_input) }}
       {%- else -%}{%- endif -%}
     _progress_info_content: >-
-      {%- if _input_progress_sensor != "" and states(_input_progress_sensor) != "unknown" and states(_input_progress_sensor) | trim != "" -%}
-      Progress: {{ states(_input_progress_sensor) }}%
+      {%- if resolved_progress_sensor_input != "" and states(resolved_progress_sensor_input) != "unknown" and states(resolved_progress_sensor_input) | trim != "" -%}
+      Progress: {{ states(resolved_progress_sensor_input) }}%
       {%- else -%}{%- endif -%}
     _remaining_time_info_content: >-
-      {%- if _input_remaining_time_sensor != "" and states(_input_remaining_time_sensor) != "unknown" and states(_input_remaining_time_sensor) | trim != "" -%}
-      {% set minutes = states(_input_remaining_time_sensor) | int(0) -%}
+      {%- if resolved_remaining_sensor_input != "" and states(resolved_remaining_sensor_input) != "unknown" and states(resolved_remaining_sensor_input) | trim != "" -%}
+      {% set minutes = states(resolved_remaining_sensor_input) | int(0) -%}
       {% set days = (minutes // (24 * 60)) -%}
       {% set hours = (minutes % (24 * 60)) // 60 -%}
       {% set remaining_minutes = minutes % 60 -%}
@@ -508,10 +502,19 @@ action:
             alias: Wait for snapshot to write (DEBUG)
           # Define a variable for the simulated confidence value first
           # Use !input here as blueprint_input might not be available in this specific variables template context
-          - variables: # Set the specific title and merge common notification vars
+          - variables:
+              # Sequence-specific variables
               raw_debug_confidence_value: !input debug_simulated_confidence
               notification_title_var: "DEBUG: Simulated Spaghetti Detected"
-              <<: *prepare_common_notification_vars
+
+              # Resolve inputs to local vars for the templates anchor
+              resolved_task_sensor_input: !input printer_task_name_sensor
+              resolved_progress_sensor_input: !input printer_print_progress_sensor
+              resolved_remaining_sensor_input: !input printer_remaining_time_sensor
+              resolved_timeout_minutes_input: !input timeout_minutes
+              resolved_ext_notify_host_input: !input external_notification_host_url
+              resolved_ha_host_input: !input home_assistant_host
+              <<: *define_notification_message_parts # Merge templates that use the resolved_... vars
           # Simulate a high confidence value by setting the normalized_p number helper
           - service: number.set_value
             target:
@@ -865,9 +868,18 @@ action:
                     alias: Log EMERGENCY Snapshot Attempt
                   - delay: "00:00:02" # Brief delay to ensure snapshot is written
                     alias: Wait for snapshot to write
-                  - variables: # Set the specific title and merge common notification vars
+                  - variables:
+                      # Sequence-specific variables
                       notification_title_var: "Bambu Lab - EMERGENCY: Spaghetti Detected"
-                      <<: *prepare_common_notification_vars
+
+                      # Resolve inputs to local vars for the templates anchor
+                      resolved_task_sensor_input: !input printer_task_name_sensor
+                      resolved_progress_sensor_input: !input printer_print_progress_sensor
+                      resolved_remaining_sensor_input: !input printer_remaining_time_sensor
+                      resolved_timeout_minutes_input: !input timeout_minutes
+                      resolved_ext_notify_host_input: !input external_notification_host_url
+                      resolved_ha_host_input: !input home_assistant_host
+                      <<: *define_notification_message_parts # Merge templates that use the resolved_... vars
                   - choose: # Use the anchored choose content
                       *action_choose_anchor # Printer action (pause/stop)
                     alias: "Execute Anchored Action Choose (Emergency)"
@@ -907,9 +919,18 @@ action:
                     alias: Log MAIN FAILURE Snapshot Attempt
                   - delay: "00:00:02" # Brief delay to ensure snapshot is written
                     alias: Wait for snapshot to write
-                  - variables: # Set the specific title and merge common notification vars
+                  - variables:
+                      # Sequence-specific variables
                       notification_title_var: "Bambu Lab - Spaghetti Detected"
-                      <<: *prepare_common_notification_vars
+
+                      # Resolve inputs to local vars for the templates anchor
+                      resolved_task_sensor_input: !input printer_task_name_sensor
+                      resolved_progress_sensor_input: !input printer_print_progress_sensor
+                      resolved_remaining_sensor_input: !input printer_remaining_time_sensor
+                      resolved_timeout_minutes_input: !input timeout_minutes
+                      resolved_ext_notify_host_input: !input external_notification_host_url
+                      resolved_ha_host_input: !input home_assistant_host
+                      <<: *define_notification_message_parts # Merge templates that use the resolved_... vars
                   - choose: # Use the anchored choose content
                       *action_choose_anchor # Printer action (pause/stop)
                     alias: "Execute Anchored Action Choose (Main Failure)"
@@ -954,9 +975,18 @@ action:
                     alias: Log WARNING Snapshot Attempt
                   - delay: "00:00:02" # Brief delay to ensure snapshot is written
                     alias: Wait for snapshot to write
-                  - variables: # Set the specific title and merge common notification vars
+                  - variables:
+                      # Sequence-specific variables
                       notification_title_var: "Bambu Lab - Potential Issue (Warning)"
-                      <<: *prepare_common_notification_vars
+
+                      # Resolve inputs to local vars for the templates anchor
+                      resolved_task_sensor_input: !input printer_task_name_sensor
+                      resolved_progress_sensor_input: !input printer_print_progress_sensor
+                      resolved_remaining_sensor_input: !input printer_remaining_time_sensor
+                      resolved_timeout_minutes_input: !input timeout_minutes
+                      resolved_ext_notify_host_input: !input external_notification_host_url
+                      resolved_ha_host_input: !input home_assistant_host
+                      <<: *define_notification_message_parts # Merge templates that use the resolved_... vars
                   # Only send notification, no printer action for this warning case
                   - choose: # Use the anchored choose content
                       *notification_choose_anchor # Notification
