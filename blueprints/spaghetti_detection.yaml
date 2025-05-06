@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.49
+  name: Bambu Lab - Spaghetti Detection v1.51
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -327,6 +327,7 @@ variables:
               {{- file_info_var | default('') -}}
               {{- progress_info_var | default('') -}}
               {{- remaining_time_info_var | default('') -}}
+              {{ "\n" }}Debug Img URL: {{ HOME_ASSISTANT_HOST_VAR }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}
             data:
               image: "{{ HOME_ASSISTANT_HOST_VAR }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}" # Add cache buster
               ttl: 0
@@ -350,6 +351,7 @@ variables:
               {{- file_info_var | default('') -}}
               {{- progress_info_var | default('') -}}
               {{- remaining_time_info_var | default('') -}}
+              {{ "\n" }}Debug Img URL: {{ HOME_ASSISTANT_HOST_VAR }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}
             data:
               image: "{{ HOME_ASSISTANT_HOST_VAR }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}" # Add cache buster
               actions:
@@ -479,9 +481,21 @@ action:
                 Image URL='{{ HOME_ASSISTANT_HOST_VAR }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}'
               level: warning # Test: Changed to warning to ensure visibility
             alias: Log Debug Notification Prep
-          - choose: # Use the anchored choose content for notification
-              *notification_choose_anchor
-            alias: "Send DEBUG Notification"
+          # --- SIMPLIFIED DEBUG NOTIFICATION TEST ---
+          - service: !input notification_service # Use the user's selected notification service
+            data:
+              title: "DEBUG: Image Test"
+              message: "Attempting to send image via internal URL. See log for URL."
+              data: # Nested data for mobile_app specifics
+                image: "{{ HOME_ASSISTANT_HOST_VAR }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}"
+                # Optional: For critical notifications on Android, a channel might be needed.
+                # You can try adding a channel if your 'critical' setting normally uses one.
+                # channel: "alarm_stream" # Example, if you use this for critical
+            alias: "Send SIMPLIFIED DEBUG Notification with Image"
+          # --- END OF SIMPLIFIED DEBUG NOTIFICATION TEST ---
+          # The original complex notification is temporarily bypassed for this test:
+          # - choose: *notification_choose_anchor
+          #   alias: "Send DEBUG Notification"
           # Update last notify time to respect cooldown for debug notifications too
           - service: datetime.set_value
             data: { datetime: "{{ now() }}" }
