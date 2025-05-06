@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.21
+  name: Bambu Lab - Spaghetti Detection v1.22
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -248,7 +248,7 @@ variables:
               actions:
                 - { action: BAMBU_LAB_RESUME_PRINTING, title: Resume Printing }
                 - { action: BAMBU_LAB_STOP_PRINTING, title: Stop Printing }
-                - { action: BAMBU_LAB_DISABLE_DETECTION, title: "Disable {{ !input timeout_minutes }} min" }
+                - { action: BAMBU_LAB_DISABLE_DETECTION, title: "Disable {{ blueprint_input.timeout_minutes }} min" }
           alias: Send Critical Notification
     - conditions:
         - condition: template
@@ -263,7 +263,7 @@ variables:
               actions:
                 - { action: BAMBU_LAB_RESUME_PRINTING, title: Resume Printing }
                 - { action: BAMBU_LAB_STOP_PRINTING, title: Stop Printing }
-                - { action: BAMBU_LAB_DISABLE_DETECTION, title: "Disable {{ !input timeout_minutes }} min" }
+                - { action: BAMBU_LAB_DISABLE_DETECTION, title: "Disable {{ blueprint_input.timeout_minutes }} min" }
           alias: Send Standard Notification
 
   _resets_tail_sequence: &resets_tail_anchor # Common actions after a detection event.
