@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.45
+  name: Bambu Lab - Spaghetti Detection v1.46
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -463,7 +463,8 @@ action:
                 Notification Setting='{!input notification_settings}',
                 Notification Service='{!input notification_service}',
                 Debug Mode Input='{!input debug_mode_enabled}'
-              level: info
+              level: warning # Test: Changed to warning to ensure visibility
+            alias: Log Debug Notification Prep
           - choose: # Use the anchored choose content for notification
               *notification_choose_anchor
             alias: "Send DEBUG Notification"
