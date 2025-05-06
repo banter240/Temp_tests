@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.52
+  name: Bambu Lab - Spaghetti Detection v1.53
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -458,8 +458,10 @@ action:
               _input_task_name_sensor: !input printer_task_name_sensor
               _input_progress_sensor: !input printer_print_progress_sensor
               _input_remaining_time_sensor: !input printer_remaining_time_sensor
+              _local_external_notification_host_url: !input external_notification_host_url
+              _local_home_assistant_host: !input home_assistant_host
               # Determine the host URL to use for notification images
-              _effective_notification_host: "{{ !input external_notification_host_url if !input external_notification_host_url | string | trim != '' else !input home_assistant_host }}"
+              _effective_notification_host: "{{ _local_external_notification_host_url if _local_external_notification_host_url | string | trim != '' else _local_home_assistant_host }}"
               # Define notification variables using local script variables
               notification_title_var: "DEBUG: Simulated Spaghetti Detected"
               disable_action_title_var: "Disable {{ _input_timeout_minutes }} min"
@@ -849,8 +851,10 @@ action:
                       _input_task_name_sensor: !input printer_task_name_sensor
                       _input_progress_sensor: !input printer_print_progress_sensor
                       _input_remaining_time_sensor: !input printer_remaining_time_sensor
+                      _local_external_notification_host_url: !input external_notification_host_url
+                      _local_home_assistant_host: !input home_assistant_host
                       # Determine the host URL to use for notification images
-                      _effective_notification_host: "{{ !input external_notification_host_url if !input external_notification_host_url | string | trim != '' else !input home_assistant_host }}"
+                      _effective_notification_host: "{{ _local_external_notification_host_url if _local_external_notification_host_url | string | trim != '' else _local_home_assistant_host }}"
                       # Define notification variables using local script variables
                       notification_title_var: "Bambu Lab - EMERGENCY: Spaghetti Detected"
                       disable_action_title_var: "Disable {{ _input_timeout_minutes }} min"
@@ -915,8 +919,10 @@ action:
                       _input_task_name_sensor: !input printer_task_name_sensor
                       _input_progress_sensor: !input printer_print_progress_sensor
                       _input_remaining_time_sensor: !input printer_remaining_time_sensor
+                      _local_external_notification_host_url: !input external_notification_host_url
+                      _local_home_assistant_host: !input home_assistant_host
                       # Determine the host URL to use for notification images
-                      _effective_notification_host: "{{ !input external_notification_host_url if !input external_notification_host_url | string | trim != '' else !input home_assistant_host }}"
+                      _effective_notification_host: "{{ _local_external_notification_host_url if _local_external_notification_host_url | string | trim != '' else _local_home_assistant_host }}"
                       # Define notification variables using local script variables
                       notification_title_var: "Bambu Lab - Spaghetti Detected"
                       disable_action_title_var: "Disable {{ _input_timeout_minutes }} min"
@@ -986,8 +992,10 @@ action:
                       _input_task_name_sensor: !input printer_task_name_sensor
                       _input_progress_sensor: !input printer_print_progress_sensor
                       _input_remaining_time_sensor: !input printer_remaining_time_sensor
+                      _local_external_notification_host_url: !input external_notification_host_url
+                      _local_home_assistant_host: !input home_assistant_host
                       # Determine the host URL to use for notification images
-                      _effective_notification_host: "{{ !input external_notification_host_url if !input external_notification_host_url | string | trim != '' else !input home_assistant_host }}"
+                      _effective_notification_host: "{{ _local_external_notification_host_url if _local_external_notification_host_url | string | trim != '' else _local_home_assistant_host }}"
                       # Define notification variables using local script variables
                       notification_title_var: "Bambu Lab - Potential Issue (Warning)"
                       disable_action_title_var: "Disable {{ _input_timeout_minutes }} min" # Also needed here for consistency if actions were added
