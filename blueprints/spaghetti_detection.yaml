@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.39
+  name: Bambu Lab - Spaghetti Detection v1.40
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -874,14 +874,15 @@ action:
               filename: "www/snapshots/bambu_lab_spaghetti_snapshot.jpg" # Use the same snapshot name
             alias: Take Snapshot for DEBUG Notification
           # Define a variable for the simulated confidence value first
+          # Use !input here as blueprint_input might not be available in this specific variables template context
           - variables:
-              simulated_confidence_for_debug: "{{ (blueprint_input.debug_simulated_confidence | int(95)) / 100.0 }}"
+              raw_debug_confidence_value: !input debug_simulated_confidence
           # Simulate a high confidence value by setting the normalized_p number helper
           - service: number.set_value
             target:
               entity_id: number.bambu_lab_p1_spaghetti_detection_normalized_p
             data:
-              value: "{{ simulated_confidence_for_debug }}" # Use the pre-calculated variable
+              value: "{{ (raw_debug_confidence_value | int(95)) / 100.0 }}" # Calculate using the script variable
             alias: Set Simulated Confidence for DEBUG
           - variables:
               notification_title_var: "DEBUG: Simulated Spaghetti Detected"
