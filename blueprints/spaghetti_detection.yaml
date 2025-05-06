@@ -325,7 +325,7 @@ notification_choose: &notification_choose_anchor
                 channel: alarm_stream # Ensure channel exists on devices
                 push:
                   sound: { name: default, critical: 1, volume: 0.75 }
-                actions:
+                  actions:
                   - action: BAMBU_LAB_RESUME_PRINTING
                     title: Resume Printing
                   - action: BAMBU_LAB_STOP_PRINTING
@@ -447,7 +447,7 @@ action:
               - BAMBU_LAB_STOP_PRINTING
             alias: "Condition: Triggered by Resume or Stop Notification Action"
         sequence:
-          - choose:
+           - choose:
               - conditions: # Resume Action
                   - condition: trigger
                     id: BAMBU_LAB_RESUME_PRINTING
@@ -466,7 +466,7 @@ action:
                     target: { entity_id: !input printer_stop_button }
                     alias: "Service Call: Press Stop Button"
                 alias: "Action Sequence: Execute Stop"
-            alias: "Choose Block: Handle Resume or Stop Action"
+             alias: "Choose Block: Handle Resume or Stop Action"
         alias: "Sequence: Handle Resume/Stop Notification Actions"
 
       # === Branch: Disable Detection Notification Action ===
@@ -504,4 +504,3 @@ action:
                     state: running
                     alias: "Condition: Printer state is running"
                 alias: "Check: Printer NOT running?"
-    
