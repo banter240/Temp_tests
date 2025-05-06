@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.40
+  name: Bambu Lab - Spaghetti Detection v1.41
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -715,25 +715,30 @@ action:
                       filename: "www/snapshots/bambu_lab_spaghetti_snapshot.jpg"
                     alias: Take Snapshot for Emergency Notification
                   - variables:
+                      # Fetch blueprint inputs into local script variables
+                      _input_timeout_minutes: !input timeout_minutes
+                      _input_task_name_sensor: !input printer_task_name_sensor
+                      _input_progress_sensor: !input printer_print_progress_sensor
+                      _input_remaining_time_sensor: !input printer_remaining_time_sensor
+                      # Define notification variables using local script variables
                       notification_title_var: "Bambu Lab - EMERGENCY: Spaghetti Detected"
-                      disable_action_title_var: "Disable {{ blueprint_input.timeout_minutes }} min"
+                      disable_action_title_var: "Disable {{ _input_timeout_minutes }} min"
                       file_info_var: |
-                        {% if blueprint_input.printer_task_name_sensor != "" and states(blueprint_input.printer_task_name_sensor) != "unknown" -%}
-                        {{ "\n" }}File: {{ states(blueprint_input.printer_task_name_sensor) }}
+                        {% if _input_task_name_sensor != "" and states(_input_task_name_sensor) != "unknown" -%}
+                        {{ "\n" }}File: {{ states(_input_task_name_sensor) }}
                         {%- endif %}
                       progress_info_var: |
-                        {% if blueprint_input.printer_print_progress_sensor != "" and states(blueprint_input.printer_print_progress_sensor) != "unknown" -%}
-                        {{ "\n" }}Progress: {{ states(blueprint_input.printer_print_progress_sensor) }}%
+                        {% if _input_progress_sensor != "" and states(_input_progress_sensor) != "unknown" -%}
+                        {{ "\n" }}Progress: {{ states(_input_progress_sensor) }}%
                         {%- endif %}
                       remaining_time_info_var: |
-                        {% if blueprint_input.printer_remaining_time_sensor != "" and states(blueprint_input.printer_remaining_time_sensor) != "unknown" -%}
-                        {% set minutes = states(blueprint_input.printer_remaining_time_sensor) | int(0) -%}
+                        {% if _input_remaining_time_sensor != "" and states(_input_remaining_time_sensor) != "unknown" -%}
+                        {% set minutes = states(_input_remaining_time_sensor) | int(0) -%}
                         {% set days = (minutes // (24 * 60)) -%}
                         {% set hours = (minutes % (24 * 60)) // 60 -%}
                         {% set remaining_minutes = minutes % 60 -%}
                         {{ "\n" }}Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m
                         {%- endif %}
-
                   - choose: # Use the anchored choose content
                       *action_choose_anchor # Printer action (pause/stop)
                     alias: "Execute Anchored Action Choose (Emergency)"
@@ -767,19 +772,25 @@ action:
                       filename: "www/snapshots/bambu_lab_spaghetti_snapshot.jpg"
                     alias: Take Snapshot for Main Failure Notification
                   - variables:
+                      # Fetch blueprint inputs into local script variables
+                      _input_timeout_minutes: !input timeout_minutes
+                      _input_task_name_sensor: !input printer_task_name_sensor
+                      _input_progress_sensor: !input printer_print_progress_sensor
+                      _input_remaining_time_sensor: !input printer_remaining_time_sensor
+                      # Define notification variables using local script variables
                       notification_title_var: "Bambu Lab - Spaghetti Detected"
-                      disable_action_title_var: "Disable {{ blueprint_input.timeout_minutes }} min"
+                      disable_action_title_var: "Disable {{ _input_timeout_minutes }} min"
                       file_info_var: |
-                        {% if blueprint_input.printer_task_name_sensor != "" and states(blueprint_input.printer_task_name_sensor) != "unknown" -%}
-                        {{ "\n" }}File: {{ states(blueprint_input.printer_task_name_sensor) }}
+                        {% if _input_task_name_sensor != "" and states(_input_task_name_sensor) != "unknown" -%}
+                        {{ "\n" }}File: {{ states(_input_task_name_sensor) }}
                         {%- endif %}
                       progress_info_var: |
-                        {% if blueprint_input.printer_print_progress_sensor != "" and states(blueprint_input.printer_print_progress_sensor) != "unknown" -%}
-                        {{ "\n" }}Progress: {{ states(blueprint_input.printer_print_progress_sensor) }}%
+                        {% if _input_progress_sensor != "" and states(_input_progress_sensor) != "unknown" -%}
+                        {{ "\n" }}Progress: {{ states(_input_progress_sensor) }}%
                         {%- endif %}
                       remaining_time_info_var: |
-                        {% if blueprint_input.printer_remaining_time_sensor != "" and states(blueprint_input.printer_remaining_time_sensor) != "unknown" -%}
-                        {% set minutes = states(blueprint_input.printer_remaining_time_sensor) | int(0) -%}
+                        {% if _input_remaining_time_sensor != "" and states(_input_remaining_time_sensor) != "unknown" -%}
+                        {% set minutes = states(_input_remaining_time_sensor) | int(0) -%}
                         {% set days = (minutes // (24 * 60)) -%}
                         {% set hours = (minutes % (24 * 60)) // 60 -%}
                         {% set remaining_minutes = minutes % 60 -%}
@@ -823,19 +834,25 @@ action:
                       filename: "www/snapshots/bambu_lab_spaghetti_snapshot.jpg"
                     alias: Take Snapshot for Warning Notification
                   - variables:
+                      # Fetch blueprint inputs into local script variables
+                      _input_timeout_minutes: !input timeout_minutes
+                      _input_task_name_sensor: !input printer_task_name_sensor
+                      _input_progress_sensor: !input printer_print_progress_sensor
+                      _input_remaining_time_sensor: !input printer_remaining_time_sensor
+                      # Define notification variables using local script variables
                       notification_title_var: "Bambu Lab - Potential Issue (Warning)"
-                      disable_action_title_var: "Disable {{ blueprint_input.timeout_minutes }} min" # Also needed here for consistency if actions were added
+                      disable_action_title_var: "Disable {{ _input_timeout_minutes }} min" # Also needed here for consistency if actions were added
                       file_info_var: |
-                        {% if blueprint_input.printer_task_name_sensor != "" and states(blueprint_input.printer_task_name_sensor) != "unknown" -%}
-                        {{ "\n" }}File: {{ states(blueprint_input.printer_task_name_sensor) }}
+                        {% if _input_task_name_sensor != "" and states(_input_task_name_sensor) != "unknown" -%}
+                        {{ "\n" }}File: {{ states(_input_task_name_sensor) }}
                         {%- endif %}
                       progress_info_var: |
-                        {% if blueprint_input.printer_print_progress_sensor != "" and states(blueprint_input.printer_print_progress_sensor) != "unknown" -%}
-                        {{ "\n" }}Progress: {{ states(blueprint_input.printer_print_progress_sensor) }}%
+                        {% if _input_progress_sensor != "" and states(_input_progress_sensor) != "unknown" -%}
+                        {{ "\n" }}Progress: {{ states(_input_progress_sensor) }}%
                         {%- endif %}
                       remaining_time_info_var: |
-                        {% if blueprint_input.printer_remaining_time_sensor != "" and states(blueprint_input.printer_remaining_time_sensor) != "unknown" -%}
-                        {% set minutes = states(blueprint_input.printer_remaining_time_sensor) | int(0) -%}
+                        {% if _input_remaining_time_sensor != "" and states(_input_remaining_time_sensor) != "unknown" -%}
+                        {% set minutes = states(_input_remaining_time_sensor) | int(0) -%}
                         {% set days = (minutes // (24 * 60)) -%}
                         {% set hours = (minutes % (24 * 60)) // 60 -%}
                         {% set remaining_minutes = minutes % 60 -%}
@@ -877,6 +894,30 @@ action:
           # Use !input here as blueprint_input might not be available in this specific variables template context
           - variables:
               raw_debug_confidence_value: !input debug_simulated_confidence
+              # Fetch other blueprint inputs needed for the notification message
+              _input_timeout_minutes: !input timeout_minutes
+              _input_task_name_sensor: !input printer_task_name_sensor
+              _input_progress_sensor: !input printer_print_progress_sensor
+              _input_remaining_time_sensor: !input printer_remaining_time_sensor
+              # Define notification variables using local script variables
+              notification_title_var: "DEBUG: Simulated Spaghetti Detected"
+              disable_action_title_var: "Disable {{ _input_timeout_minutes }} min"
+              file_info_var: |
+                {% if _input_task_name_sensor != "" and states(_input_task_name_sensor) != "unknown" -%}
+                {{ "\n" }}File: {{ states(_input_task_name_sensor) }}
+                {%- endif %}
+              progress_info_var: |
+                {% if _input_progress_sensor != "" and states(_input_progress_sensor) != "unknown" -%}
+                {{ "\n" }}Progress: {{ states(_input_progress_sensor) }}%
+                {%- endif %}
+              remaining_time_info_var: |
+                {% if _input_remaining_time_sensor != "" and states(_input_remaining_time_sensor) != "unknown" -%}
+                {% set minutes = states(_input_remaining_time_sensor) | int(0) -%}
+                {% set days = (minutes // (24 * 60)) -%}
+                {% set hours = (minutes % (24 * 60)) // 60 -%}
+                {% set remaining_minutes = minutes % 60 -%}
+                {{ "\n" }}Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m
+                {%- endif %}
           # Simulate a high confidence value by setting the normalized_p number helper
           - service: number.set_value
             target:
@@ -884,25 +925,6 @@ action:
             data:
               value: "{{ (raw_debug_confidence_value | int(95)) / 100.0 }}" # Calculate using the script variable
             alias: Set Simulated Confidence for DEBUG
-          - variables:
-              notification_title_var: "DEBUG: Simulated Spaghetti Detected"
-              disable_action_title_var: "Disable {{ blueprint_input.timeout_minutes }} min"
-              file_info_var: |
-                {% if blueprint_input.printer_task_name_sensor != "" and states(blueprint_input.printer_task_name_sensor) != "unknown" -%}
-                {{ "\n" }}File: {{ states(blueprint_input.printer_task_name_sensor) }}
-                {%- endif %}
-              progress_info_var: |
-                {% if blueprint_input.printer_print_progress_sensor != "" and states(blueprint_input.printer_print_progress_sensor) != "unknown" -%}
-                {{ "\n" }}Progress: {{ states(blueprint_input.printer_print_progress_sensor) }}%
-                {%- endif %}
-              remaining_time_info_var: |
-                {% if blueprint_input.printer_remaining_time_sensor != "" and states(blueprint_input.printer_remaining_time_sensor) != "unknown" -%}
-                {% set minutes = states(blueprint_input.printer_remaining_time_sensor) | int(0) -%}
-                {% set days = (minutes // (24 * 60)) -%}
-                {% set hours = (minutes % (24 * 60)) // 60 -%}
-                {% set remaining_minutes = minutes % 60 -%}
-                {{ "\n" }}Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m
-                {%- endif %}
           - choose: # Use the anchored choose content for notification
               *notification_choose_anchor
             alias: "Send DEBUG Notification"
