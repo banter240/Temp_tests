@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.2
+  name: Bambu Lab - Spaghetti Detection v1.21
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -202,7 +202,7 @@ blueprint:
         boolean:
 trigger_variables:
   # Check if user-defined thresholds are logically ordered.
-  user_failure_below_emergency: "{{ (!input failure_percentage_threshold | int(0)) < (!input emergency_action_threshold | int(0)) }}"
+  user_failure_below_emergency: "{{ (blueprint_input.failure_percentage_threshold | int(0)) < (blueprint_input.emergency_action_threshold | int(0)) }}"
 
 variables:
   HOME_ASSISTANT_HOST_VAR: !input home_assistant_host
