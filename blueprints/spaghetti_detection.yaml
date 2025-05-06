@@ -234,8 +234,6 @@ variables:
         - service: button.press
           target: { entity_id: !input printer_stop_button }
           alias: Execute Stop Action
-    # No default action defined here, can be added if needed for this specific choose
-    alias: "Choose and Execute Printer Failure Action" # Alias for this choose action
 
   _notification_choose_sequence: &notification_choose_anchor
     # Sequence block containing the Notification Choose block (Critical/Standard).
@@ -275,8 +273,6 @@ variables:
                 - { action: BAMBU_LAB_STOP_PRINTING, title: Stop Printing }
                 - { action: BAMBU_LAB_DISABLE_DETECTION, title: "Disable {{ !input timeout_minutes }} min" }
           alias: Send Standard Notification
-    default: [] # If Notification Settings is 'none'
-    alias: "Choose and Send Notification" # Alias for this choose action
 
   _resets_tail_sequence: &resets_tail_anchor
     # Sequence block containing the metric resets + last notify time update.
