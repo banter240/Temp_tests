@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.22
+  name: Bambu Lab - Spaghetti Detection v1.23
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -389,10 +389,10 @@ action:
             target: # Store the time until which detection should be disabled.
               entity_id: !input detection_disable_until_helper
             data:
-              datetime: "{{ now() + timedelta(minutes=!input timeout_minutes | int(0)) }}"
+              datetime: "{{ now() + timedelta(minutes=blueprint_input.timeout_minutes | int(0)) }}"
           - service: system_log.write # Log that detection was temporarily disabled
             data:
-              message: "Bambu Lab Spaghetti Detection: Temporarily disabled actions/notifications for {{ !input timeout_minutes }} minutes via notification action."
+              message: "Bambu Lab Spaghetti Detection: Temporarily disabled actions/notifications for {{ blueprint_input.timeout_minutes }} minutes via notification action."
               level: info
       # This is the main spaghetti detection sequence, triggered periodically.
       - conditions:
@@ -434,7 +434,7 @@ action:
             then:
               - service: system_log.write
                 data:
-                  message: "Bambu Lab Spaghetti Detection: Configuration Error! 'Failure Detection Threshold (%)' ({{ !input failure_percentage_threshold }}) must be less than 'Emergency Action Threshold (%)' ({{ !input emergency_action_threshold }})."
+                  message: "Bambu Lab Spaghetti Detection: Configuration Error! 'Failure Detection Threshold (%)' ({{ blueprint_input.failure_percentage_threshold }}) must be less than 'Emergency Action Threshold (%)' ({{ blueprint_input.emergency_action_threshold }})."
                   level: error
                 alias: Log Validation Error
               - stop: "Configuration Error: Thresholds misconfigured."
@@ -611,11 +611,11 @@ action:
           - if:
               - condition: template
                 value_template: >-
-                  {{ now() < (states(!input detection_disable_until_helper) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00'))) }}
+                  {{ now() < (states(blueprint_input.detection_disable_until_helper) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00'))) }}
             then:
               - service: system_log.write # Log that actions are skipped due to active user timeout.
                 data:
-                  message: "Bambu Lab Spaghetti Detection: Action/Notification skipped due to active timeout until {{ states(!input detection_disable_until_helper) }}."
+                  message: "Bambu Lab Spaghetti Detection: Action/Notification skipped due to active timeout until {{ states(blueprint_input.detection_disable_until_helper) }}."
                   level: info
               - stop: "Detection temporarily disabled by timeout."
             alias: "Check if detection is temporarily disabled (within timeout period)"
@@ -625,7 +625,7 @@ action:
               # Case 1: Emergency Threshold Met (Overrides Timeout and 1-min cooldown)
               - conditions: # Emergency Action
                   - condition: template
-                    value_template: "{{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) >= (!input emergency_action_threshold | int(0)) }}"
+                    value_template: "{{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) >= (blueprint_input.emergency_action_threshold | int(0)) }}"
                 sequence:
                   - variables: { notification_title_var: "Bambu Lab - EMERGENCY: Spaghetti Detected" }
                   - choose: # Use the anchored choose content
@@ -640,9 +640,9 @@ action:
               # Case 2: Main Failure Threshold Met (No Emergency, No active user Timeout, Not within 1-min cooldown)
               - conditions: # Main Failure Action
                   - condition: template # Not Emergency (implicit by order)
-                    value_template: "{{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) >= (!input failure_percentage_threshold | int(0)) }}"
+                    value_template: "{{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) >= (blueprint_input.failure_percentage_threshold | int(0)) }}"
                   - condition: template # User Timeout NOT active
-                    value_template: "{{ not (now() < (states(!input detection_disable_until_helper) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')))) }}"
+                    value_template: "{{ not (now() < (states(blueprint_input.detection_disable_until_helper) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')))) }}"
                   - condition: template # 1-minute notification cooldown NOT active
                     value_template: "{{ not ((now() - (states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local) < timedelta(minutes=1))) }}"
                 sequence:
@@ -659,14 +659,14 @@ action:
               # Case 3: Warn Below Failure Threshold (No Emergency, No active user Timeout, Not within 1-min cooldown, and relevant conditions met)
               - conditions: # Warning Notification Only
                   - condition: template # Not Emergency (implicit by order)
-                    value_template: "{{ !input warn_below_failure_threshold }}" # Toggle is ON
+                    value_template: "{{ blueprint_input.warn_below_failure_threshold }}" # Toggle is ON
                   - condition: template # Confidence is BELOW Min. Failure Threshold
-                    value_template: "{{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) < (!input failure_percentage_threshold | int(0)) }}"
+                    value_template: "{{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) < (blueprint_input.failure_percentage_threshold | int(0)) }}"
                   - condition: numeric_state # Confidence is ABOVE dynamic warning threshold (original blueprint logic)
                     entity_id: number.bambu_lab_p1_spaghetti_detection_p # Using _p as per original normalized_p calculation
                     above: number.bambu_lab_p1_spaghetti_detection_thresh_warning
                   - condition: template # User Timeout NOT active
-                    value_template: "{{ not (now() < (states(!input detection_disable_until_helper) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')))) }}"
+                    value_template: "{{ not (now() < (states(blueprint_input.detection_disable_until_helper) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')))) }}"
                   - condition: template # 1-minute notification cooldown NOT active
                     value_template: "{{ not ((now() - (states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local) < timedelta(minutes=1))) }}"
                 sequence:
