@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.57
+  name: Bambu Lab - Spaghetti Detection v1.58
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -67,7 +67,7 @@ blueprint:
     # Haupterkennungs-Parameter
     detection_frequency:
       name: Detection Frequency
-      description: The detection algorithm will run in every defined seconds (Default: Every 5 seconds).
+      description: "The detection algorithm will run in every defined seconds (Default: Every 5 seconds)."
       default: "/5"
       selector:
         select:
@@ -238,7 +238,7 @@ blueprint:
           domain: input_datetime
     timeout_minutes:
       name: Detection Disable Timeout (Minutes)
-      description: Duration in minutes to disable detection actions and notifications when triggering the new notification action (Default: 60 minutes).
+      description: "Duration in minutes to disable detection actions and notifications when triggering the new notification action (Default: 60 minutes)."
       default: 60
       selector:
         number:
@@ -269,7 +269,7 @@ blueprint:
         boolean:
     debug_trigger_frequency:
       name: Debug Trigger Frequency (seconds)
-      description: How often the debug mode should simulate a detection (in seconds, Default: 30 seconds).
+      description: "How often the debug mode should simulate a detection (in seconds, Default: 30 seconds)."
       default: 30
       selector:
         number:
