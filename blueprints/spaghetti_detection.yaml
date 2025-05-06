@@ -304,43 +304,46 @@ action_choose: &action_choose_anchor
       # 'warn' action implies no direct printer action here.
     alias: "Choose Block: Select and Execute Failure Action (Pause/Stop)"
 
-# Notification sequence (Critical/Standard)
+# Notification sequence (Critical/Standard) - REWRITTEN STRUCTURE
 # Expects: notification_title_var, notification_message_var
 notification_choose: &notification_choose_anchor
   - choose:
+      # --- First Choice: Critical Notification ---
       - conditions:
           - condition: template
             value_template: "{{ NOTIFICATION_SETTINGS_VAR == 'critical' }}"
-            alias: "Condition: Notification setting is Critical"
+            alias: "Condition: Notify setting is Critical"
         sequence:
           - service: !input notification_service
+            alias: "Service Call: Send Critical Notification"
             data:
               title: "{{ notification_title_var }}"
               message: "{{ notification_message_var }}"
               data:
-                tag: bambu-spaghetti-alert # Tag for updating/clearing notifications
+                tag: bambu-spaghetti-alert
                 image: "{{ HOME_ASSISTANT_HOST_VAR }}{{ state_attr(PRINTER_CAMERA_VAR, 'entity_picture') }}"
                 ttl: 0
                 priority: high
-                channel: alarm_stream # Ensure channel exists on devices
+                channel: alarm_stream
                 push:
                   sound: { name: default, critical: 1, volume: 0.75 }
-                  actions:
+                actions:
                   - action: BAMBU_LAB_RESUME_PRINTING
                     title: Resume Printing
                   - action: BAMBU_LAB_STOP_PRINTING
                     title: Stop Printing
                   - action: BAMBU_LAB_DISABLE_DETECTION
                     title: "Disable {{ timeout_duration_minutes }} min"
-            alias: "Service Call: Send Critical Notification"
-        alias: "Notification Sequence: Send Critical"
+        alias: "Choice Block: Critical Notification"
 
+      # --- Second Choice: Standard Notification ---
       - conditions:
           - condition: template
             value_template: "{{ NOTIFICATION_SETTINGS_VAR == 'standard' }}"
-            alias: "Condition: Notification setting is Standard"
+            alias: "Condition: Notify setting is Standard"
         sequence:
           - service: !input notification_service
+            alias: "Service Call: Send Standard Notification"
             data:
               title: "{{ notification_title_var }}"
               message: "{{ notification_message_var }}"
@@ -354,10 +357,13 @@ notification_choose: &notification_choose_anchor
                     title: Stop Printing
                   - action: BAMBU_LAB_DISABLE_DETECTION
                     title: "Disable {{ timeout_duration_minutes }} min"
-            alias: "Service Call: Send Standard Notification"
-        alias: "Notification Sequence: Send Standard"
-      default: [] # 'none' for notification_settings
-    alias: "Choose Block: Select and Send Notification (Critical/Standard)"
+        alias: "Choice Block: Standard Notification"
+
+      # --- Default for Choose ---
+      default: []
+
+    alias: "Choose: Select Notification Type (Critical/Standard)"
+
 
 # Metric resets & last notify time update
 resets_tail: &resets_tail_anchor
@@ -504,3 +510,4 @@ action:
                     state: running
                     alias: "Condition: Printer state is running"
                 alias: "Check: Printer NOT running?"
+                
