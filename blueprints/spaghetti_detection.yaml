@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.37
+  name: Bambu Lab - Spaghetti Detection v1.38
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -860,7 +860,7 @@ action:
           - condition: trigger
             id: BAMBU_LAB_DEBUG_TRIGGER
           - condition: template # Ensure debug mode is actually enabled
-            value_template: "{{ blueprint_input.debug_mode_enabled }}"
+            value_template: !input debug_mode_enabled
         sequence:
           - service: system_log.write # Log that debug trigger fired
             data:
