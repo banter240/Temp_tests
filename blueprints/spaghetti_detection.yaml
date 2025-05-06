@@ -308,7 +308,7 @@ action_choose: &action_choose_anchor
 # Expects: notification_title_var, notification_message_var
 notification_choose: &notification_choose_anchor
   - choose:
-      - conditions: # Critical Notification
+      - conditions:
           - condition: template
             value_template: "{{ NOTIFICATION_SETTINGS_VAR == 'critical' }}"
             alias: "Condition: Notification setting is Critical"
@@ -335,7 +335,7 @@ notification_choose: &notification_choose_anchor
             alias: "Service Call: Send Critical Notification"
         alias: "Notification Sequence: Send Critical"
 
-      - conditions: # Standard Notification
+      - conditions:
           - condition: template
             value_template: "{{ NOTIFICATION_SETTINGS_VAR == 'standard' }}"
             alias: "Condition: Notification setting is Standard"
