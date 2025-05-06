@@ -1,5 +1,6 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection
+  # Based on the work from: https://github.com/nberktumer/ha-bambu-lab-p1-spaghetti-detection
+  name: Bambu Lab - Spaghetti Detection v1.0
   description: >-
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
     **Important Setup for Timeout Feature:** This blueprint requires a manually created
