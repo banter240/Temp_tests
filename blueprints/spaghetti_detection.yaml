@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.54
+  name: Bambu Lab - Spaghetti Detection v1.56
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -64,7 +64,7 @@ blueprint:
       default: "obico_api_secret"
     detection_frequency:
       name: Detection Frequency
-      description: The detection algorithm will run in every defined seconds
+      description: The detection algorithm will run in every defined seconds (Default: Every 5 seconds).
       default: "/5"
       selector:
         select:
@@ -182,7 +182,7 @@ blueprint:
               domain: light
     timeout_minutes:
       name: Detection Disable Timeout (Minutes)
-      description: Duration in minutes to disable detection actions and notifications when triggering the new notification action.
+      description: Duration in minutes to disable detection actions and notifications when triggering the new notification action (Default: 60 minutes).
       default: 60
       selector:
         number:
@@ -257,7 +257,7 @@ blueprint:
         boolean:
     debug_trigger_frequency:
       name: Debug Trigger Frequency (seconds)
-      description: How often the debug mode should simulate a detection (in seconds).
+      description: How often the debug mode should simulate a detection (in seconds, Default: 30 seconds).
       default: 30
       selector:
         number:
@@ -334,13 +334,19 @@ variables:
       sequence:
         - service: !input notification_service
           data:
-            title: "{{ notification_title_var | default('') }}"
-            message: >
+            title: "{{ notification_title_var | default('') }}" # This title is set by the calling sequence
+            message: |
               Confidence: {{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) | int }}%
-              {{- file_info_var | default('') -}}
-              {{- progress_info_var | default('') -}}
-              {{- remaining_time_info_var | default('') -}}
-              {{ "\n" }}Debug Img URL: {{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}
+              {% if _file_info_content | trim != "" -%}
+              {{ _file_info_content }}
+              {% endif -%}
+              {% if _progress_info_content | trim != "" -%}
+              {{ _progress_info_content }}
+              {% endif -%}
+              {% if _remaining_time_info_content | trim != "" -%}
+              {{ _remaining_time_info_content }}
+              {% endif -%}
+              {# {{ "\n" }}Debug Img URL: {{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }} #}
             data:
               image: "{{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}" # Add cache buster
               ttl: 0
@@ -358,13 +364,19 @@ variables:
       sequence:
         - service: !input notification_service
           data:
-            title: "{{ notification_title_var | default('') }}"
-            message: >
+            title: "{{ notification_title_var | default('') }}" # This title is set by the calling sequence
+            message: |
               Confidence: {{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) | int }}%
-              {{- file_info_var | default('') -}}
-              {{- progress_info_var | default('') -}}
-              {{- remaining_time_info_var | default('') -}}
-              {{ "\n" }}Debug Img URL: {{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}
+              {% if _file_info_content | trim != "" -%}
+              {{ _file_info_content }}
+              {% endif -%}
+              {% if _progress_info_content | trim != "" -%}
+              {{ _progress_info_content }}
+              {% endif -%}
+              {% if _remaining_time_info_content | trim != "" -%}
+              {{ _remaining_time_info_content }}
+              {% endif -%}
+              {# {{ "\n" }}Debug Img URL: {{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }} #}
             data:
               image: "{{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}" # Add cache buster
               actions:
@@ -372,6 +384,37 @@ variables:
                 - { action: BAMBU_LAB_STOP_PRINTING, title: Stop Printing }
                 - { action: BAMBU_LAB_DISABLE_DETECTION, title: "{{ disable_action_title_var | default('') }}" } # Use a variable, default to empty
           alias: Send Standard Notification
+
+  _prepare_common_notification_vars: &prepare_common_notification_vars
+    # This anchor defines common variables needed for notifications.
+    # It expects '_input_timeout_minutes' etc. to be set if used by a calling template,
+    # or for the !input tags to resolve correctly in the context where this is merged.
+    _input_timeout_minutes: !input timeout_minutes
+    _input_task_name_sensor: !input printer_task_name_sensor
+    _input_progress_sensor: !input printer_print_progress_sensor
+    _input_remaining_time_sensor: !input printer_remaining_time_sensor
+    _local_external_notification_host_url: !input external_notification_host_url
+    _local_home_assistant_host: !input home_assistant_host
+    _effective_notification_host: "{{ _local_external_notification_host_url if _local_external_notification_host_url | string | trim != '' else _local_home_assistant_host }}"
+    disable_action_title_var: "Disable {{ _input_timeout_minutes }} min"
+    # These variables will produce a single line of text or an empty string.
+    # Newlines are handled by the main message template structure.
+    _file_info_content: >-
+      {%- if _input_task_name_sensor != "" and states(_input_task_name_sensor) != "unknown" and states(_input_task_name_sensor) | trim != "" -%}
+      File: {{ states(_input_task_name_sensor) }}
+      {%- else -%}{%- endif -%}
+    _progress_info_content: >-
+      {%- if _input_progress_sensor != "" and states(_input_progress_sensor) != "unknown" and states(_input_progress_sensor) | trim != "" -%}
+      Progress: {{ states(_input_progress_sensor) }}%
+      {%- else -%}{%- endif -%}
+    _remaining_time_info_content: >-
+      {%- if _input_remaining_time_sensor != "" and states(_input_remaining_time_sensor) != "unknown" and states(_input_remaining_time_sensor) | trim != "" -%}
+      {% set minutes = states(_input_remaining_time_sensor) | int(0) -%}
+      {% set days = (minutes // (24 * 60)) -%}
+      {% set hours = (minutes % (24 * 60)) // 60 -%}
+      {% set remaining_minutes = minutes % 60 -%}
+      Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m
+      {%- else -%}{%- endif -%}
 
 mode: single
 max_exceeded: silent
@@ -451,36 +494,10 @@ action:
             alias: Wait for snapshot to write (DEBUG)
           # Define a variable for the simulated confidence value first
           # Use !input here as blueprint_input might not be available in this specific variables template context
-          - variables:
+          - variables: # Set the specific title and merge common notification vars
               raw_debug_confidence_value: !input debug_simulated_confidence
-              # Fetch other blueprint inputs needed for the notification message
-              _input_timeout_minutes: !input timeout_minutes
-              _input_task_name_sensor: !input printer_task_name_sensor
-              _input_progress_sensor: !input printer_print_progress_sensor
-              _input_remaining_time_sensor: !input printer_remaining_time_sensor
-              _local_external_notification_host_url: !input external_notification_host_url
-              _local_home_assistant_host: !input home_assistant_host
-              # Determine the host URL to use for notification images
-              _effective_notification_host: "{{ _local_external_notification_host_url if _local_external_notification_host_url | string | trim != '' else _local_home_assistant_host }}"
-              # Define notification variables using local script variables
               notification_title_var: "DEBUG: Simulated Spaghetti Detected"
-              disable_action_title_var: "Disable {{ _input_timeout_minutes }} min"
-              file_info_var: |
-                {% if _input_task_name_sensor != "" and states(_input_task_name_sensor) != "unknown" -%}
-                {{ "\n" }}File: {{ states(_input_task_name_sensor) }}
-                {%- endif %}
-              progress_info_var: |
-                {% if _input_progress_sensor != "" and states(_input_progress_sensor) != "unknown" -%}
-                {{ "\n" }}Progress: {{ states(_input_progress_sensor) }}%
-                {%- endif %}
-              remaining_time_info_var: |
-                {% if _input_remaining_time_sensor != "" and states(_input_remaining_time_sensor) != "unknown" -%}
-                {% set minutes = states(_input_remaining_time_sensor) | int(0) -%}
-                {% set days = (minutes // (24 * 60)) -%}
-                {% set hours = (minutes % (24 * 60)) // 60 -%}
-                {% set remaining_minutes = minutes % 60 -%}
-                {{ "\n" }}Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m
-                {%- endif %}
+              <<: *prepare_common_notification_vars
           # Simulate a high confidence value by setting the normalized_p number helper
           - service: number.set_value
             target:
@@ -498,21 +515,10 @@ action:
                 Image URL='{{ _effective_notification_host }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}'
               level: warning # Test: Changed to warning to ensure visibility
             alias: Log Debug Notification Prep
-          # --- SIMPLIFIED DEBUG NOTIFICATION TEST ---
-          - service: !input notification_service # Use the user's selected notification service
-            data:
-              title: "DEBUG: Image Test"
-              message: "Attempting to send image via internal URL. See log for URL."
-              data: # Nested data for mobile_app specifics
-                image: "{{ _effective_notification_host }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}"
-                # Optional: For critical notifications on Android, a channel might be needed.
-                # You can try adding a channel if your 'critical' setting normally uses one.
-                # channel: "alarm_stream" # Example, if you use this for critical
-            alias: "Send SIMPLIFIED DEBUG Notification with Image"
-          # --- END OF SIMPLIFIED DEBUG NOTIFICATION TEST ---
-          # The original complex notification is temporarily bypassed for this test:
-          # - choose: *notification_choose_anchor
-          #   alias: "Send DEBUG Notification"
+          # Send the actual notification using the anchor
+          - choose:
+              *notification_choose_anchor
+            alias: "Send DEBUG Notification"
           # Update last notify time to respect cooldown for debug notifications too
           - service: datetime.set_value
             data: { datetime: "{{ now() }}" }
@@ -845,35 +851,9 @@ action:
                     alias: Log EMERGENCY Snapshot Attempt
                   - delay: "00:00:02" # Brief delay to ensure snapshot is written
                     alias: Wait for snapshot to write
-                  - variables:
-                      # Fetch blueprint inputs into local script variables
-                      _input_timeout_minutes: !input timeout_minutes
-                      _input_task_name_sensor: !input printer_task_name_sensor
-                      _input_progress_sensor: !input printer_print_progress_sensor
-                      _input_remaining_time_sensor: !input printer_remaining_time_sensor
-                      _local_external_notification_host_url: !input external_notification_host_url
-                      _local_home_assistant_host: !input home_assistant_host
-                      # Determine the host URL to use for notification images
-                      _effective_notification_host: "{{ _local_external_notification_host_url if _local_external_notification_host_url | string | trim != '' else _local_home_assistant_host }}"
-                      # Define notification variables using local script variables
+                  - variables: # Set the specific title and merge common notification vars
                       notification_title_var: "Bambu Lab - EMERGENCY: Spaghetti Detected"
-                      disable_action_title_var: "Disable {{ _input_timeout_minutes }} min"
-                      file_info_var: |
-                        {% if _input_task_name_sensor != "" and states(_input_task_name_sensor) != "unknown" -%}
-                        {{ "\n" }}File: {{ states(_input_task_name_sensor) }}
-                        {%- endif %}
-                      progress_info_var: |
-                        {% if _input_progress_sensor != "" and states(_input_progress_sensor) != "unknown" -%}
-                        {{ "\n" }}Progress: {{ states(_input_progress_sensor) }}%
-                        {%- endif %}
-                      remaining_time_info_var: |
-                        {% if _input_remaining_time_sensor != "" and states(_input_remaining_time_sensor) != "unknown" -%}
-                        {% set minutes = states(_input_remaining_time_sensor) | int(0) -%}
-                        {% set days = (minutes // (24 * 60)) -%}
-                        {% set hours = (minutes % (24 * 60)) // 60 -%}
-                        {% set remaining_minutes = minutes % 60 -%}
-                        {{ "\n" }}Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m
-                        {%- endif %}
+                      <<: *prepare_common_notification_vars
                   - choose: # Use the anchored choose content
                       *action_choose_anchor # Printer action (pause/stop)
                     alias: "Execute Anchored Action Choose (Emergency)"
@@ -913,35 +893,9 @@ action:
                     alias: Log MAIN FAILURE Snapshot Attempt
                   - delay: "00:00:02" # Brief delay to ensure snapshot is written
                     alias: Wait for snapshot to write
-                  - variables:
-                      # Fetch blueprint inputs into local script variables
-                      _input_timeout_minutes: !input timeout_minutes
-                      _input_task_name_sensor: !input printer_task_name_sensor
-                      _input_progress_sensor: !input printer_print_progress_sensor
-                      _input_remaining_time_sensor: !input printer_remaining_time_sensor
-                      _local_external_notification_host_url: !input external_notification_host_url
-                      _local_home_assistant_host: !input home_assistant_host
-                      # Determine the host URL to use for notification images
-                      _effective_notification_host: "{{ _local_external_notification_host_url if _local_external_notification_host_url | string | trim != '' else _local_home_assistant_host }}"
-                      # Define notification variables using local script variables
+                  - variables: # Set the specific title and merge common notification vars
                       notification_title_var: "Bambu Lab - Spaghetti Detected"
-                      disable_action_title_var: "Disable {{ _input_timeout_minutes }} min"
-                      file_info_var: |
-                        {% if _input_task_name_sensor != "" and states(_input_task_name_sensor) != "unknown" -%}
-                        {{ "\n" }}File: {{ states(_input_task_name_sensor) }}
-                        {%- endif %}
-                      progress_info_var: |
-                        {% if _input_progress_sensor != "" and states(_input_progress_sensor) != "unknown" -%}
-                        {{ "\n" }}Progress: {{ states(_input_progress_sensor) }}%
-                        {%- endif %}
-                      remaining_time_info_var: |
-                        {% if _input_remaining_time_sensor != "" and states(_input_remaining_time_sensor) != "unknown" -%}
-                        {% set minutes = states(_input_remaining_time_sensor) | int(0) -%}
-                        {% set days = (minutes // (24 * 60)) -%}
-                        {% set hours = (minutes % (24 * 60)) // 60 -%}
-                        {% set remaining_minutes = minutes % 60 -%}
-                        {{ "\n" }}Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m
-                        {%- endif %}
+                      <<: *prepare_common_notification_vars
                   - choose: # Use the anchored choose content
                       *action_choose_anchor # Printer action (pause/stop)
                     alias: "Execute Anchored Action Choose (Main Failure)"
@@ -986,35 +940,9 @@ action:
                     alias: Log WARNING Snapshot Attempt
                   - delay: "00:00:02" # Brief delay to ensure snapshot is written
                     alias: Wait for snapshot to write
-                  - variables:
-                      # Fetch blueprint inputs into local script variables
-                      _input_timeout_minutes: !input timeout_minutes
-                      _input_task_name_sensor: !input printer_task_name_sensor
-                      _input_progress_sensor: !input printer_print_progress_sensor
-                      _input_remaining_time_sensor: !input printer_remaining_time_sensor
-                      _local_external_notification_host_url: !input external_notification_host_url
-                      _local_home_assistant_host: !input home_assistant_host
-                      # Determine the host URL to use for notification images
-                      _effective_notification_host: "{{ _local_external_notification_host_url if _local_external_notification_host_url | string | trim != '' else _local_home_assistant_host }}"
-                      # Define notification variables using local script variables
+                  - variables: # Set the specific title and merge common notification vars
                       notification_title_var: "Bambu Lab - Potential Issue (Warning)"
-                      disable_action_title_var: "Disable {{ _input_timeout_minutes }} min" # Also needed here for consistency if actions were added
-                      file_info_var: |
-                        {% if _input_task_name_sensor != "" and states(_input_task_name_sensor) != "unknown" -%}
-                        {{ "\n" }}File: {{ states(_input_task_name_sensor) }}
-                        {%- endif %}
-                      progress_info_var: |
-                        {% if _input_progress_sensor != "" and states(_input_progress_sensor) != "unknown" -%}
-                        {{ "\n" }}Progress: {{ states(_input_progress_sensor) }}%
-                        {%- endif %}
-                      remaining_time_info_var: |
-                        {% if _input_remaining_time_sensor != "" and states(_input_remaining_time_sensor) != "unknown" -%}
-                        {% set minutes = states(_input_remaining_time_sensor) | int(0) -%}
-                        {% set days = (minutes // (24 * 60)) -%}
-                        {% set hours = (minutes % (24 * 60)) // 60 -%}
-                        {% set remaining_minutes = minutes % 60 -%}
-                        {{ "\n" }}Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m
-                        {%- endif %}
+                      <<: *prepare_common_notification_vars
                   # Only send notification, no printer action for this warning case
                   - choose: # Use the anchored choose content
                       *notification_choose_anchor # Notification
