@@ -674,7 +674,11 @@ action:
                   - variables: { notification_title_var: "Bambu Lab - Potential Issue (Warning)" }
                   # NO *action_choose_anchor here, only notification
                   - *notification_choose_anchor
-                  - *resets_tail_anchor
+                  # Only update last_notify_time, do not reset all detection metrics for a simple warning
+                  - service: datetime.set_value
+                    data: { datetime: "{{ now() }}" }
+                    target: { entity_id: datetime.bambu_lab_p1_spaghetti_detection_last_notify_time }
+                    alias: Update Last Notify Time (Warning Only)
                 alias: "Execute Warning Notification Sequence"
 
             # Default: No action/notification conditions met, or timeout/cooldown is active for non-emergency cases.
