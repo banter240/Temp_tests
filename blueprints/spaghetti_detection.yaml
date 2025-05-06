@@ -1,43 +1,23 @@
-# Complete YAML including original blueprint structure and all modifications for copy-paste.
-# Includes inputs for timeout, custom failure threshold, warn below threshold, and datetime helper.
-# Includes handling for notification actions to disable detection.
-# Includes improved logic within the time pattern trigger for threshold checks.
-# Includes error handling for the Obico API call.
-# Uses YAML anchors for reusable sequences (Action Choose, Notification Logic, Resets only).
-# Adds aliases and comments in English.
-# Requires a manually created Home Assistant Input Datetime helper.
-# Includes corrections for typos found previously.
-
 blueprint:
-  name: Bambu Lab - Spaghetti Detection (Enhanced)
-  description: |
-    Bambu Lab - Spaghetti Detection with enhanced threshold control,
-    warning notifications below failure threshold, and temporary disable via notification action.
-    Requires Bambu Lab integration and Obico ML API setup.
-    Requires a manually created Home Assistant Input Datetime helper.
+  name: Bambu Lab - Spaghetti Detection
+  description: Bambu Lab - Spaghetti Detection
   domain: automation
   input:
     home_assistant_host:
       name: Home Assistant Host
-      description: Home Assistant host (e.g., http://192.168.1.123:8123)
-      default: ""
-      selector:
-        text:
+      description: Home Assistant host
+      default: "http://192.168.1.123:8123"
     obico_host:
       name: Obico ML API Host
-      description: Obico ML API host (e.g., http://192.168.1.123:3333)
-      default: ""
-      selector:
-        text:
+      description: Obico ML API host
+      default: "http://192.168.1.123:3333"
     obico_auth_token:
       name: Obico ML API Auth Token
       description: Obico ML API authentication token
-      default: ""
-      selector:
-        text:
+      default: "obico_api_secret"
     detection_frequency:
       name: Detection Frequency
-      description: The detection algorithm will run every N seconds.
+      description: The detection algorithm will run in every defined seconds
       default: "/5"
       selector:
         select:
@@ -56,13 +36,13 @@ blueprint:
           mode: dropdown
     auto_turn_on_light:
       name: Automatically Turn On Printer Lights
-      description: Turns on printer lights before spaghetti detection operation.
+      description: Turns on printer lights before spaghetti detection operation
       default: true
       selector:
         boolean:
     notification_settings:
       name: Notification Settings
-      description: Type of notification to send after detecting an event (Critical/Standard/None).
+      description: Type of notification to send after detecting a failure
       default: standard
       selector:
         select:
@@ -76,7 +56,7 @@ blueprint:
               value: none
     failure_action:
       name: On Failure Action
-      description: What to do after detecting a failure ABOVE the user-defined failure threshold (Pause/Stop/Warn - Warn only sends notification).
+      description: What to do after detecting a failure
       default: pause
       selector:
         select:
@@ -86,44 +66,44 @@ blueprint:
               value: pause
             - label: Stop
               value: stop
-            - label: Warn # Note: "Warn" skips the action choose block, but notification still fires if threshold met.
+            - label: Warn
               value: warn
     notification_service:
       name: Mobile devices notification service
       description: >-
         The notification service for mobile devices (eg. notify.mobile_app_<your_device_id_here>).
         You can provide both a notify group or a single notify device here.
-      default: notify.notify # Example default
+      default: notify.notify
       selector:
         text:
     printer_print_status_sensor:
       name: Printer Print Status Sensor
-      description: Bambu Lab printer print status sensor (must be 'running' for detection).
+      description: Bambu Lab printer print status sensor
       selector:
         entity:
           filter:
             - integration: bambu_lab
               domain: sensor
-              device_class: enum # Assuming enum device class
+              device_class: enum
     printer_current_stage_sensor:
       name: Printer Current Stage Sensor
-      description: Bambu Lab printer current stage sensor (detection triggers on 'printing').
+      description: Bambu Lab printer current stage sensor
       selector:
         entity:
           filter:
             - integration: bambu_lab
               domain: sensor
-              device_class: enum # Assuming enum device class
+              device_class: enum
     printer_camera:
       name: Printer Camera Entity
-      description: Bambu Lab printer camera entity used for detection.
+      description: Bambu Lab printer camera entity
       selector:
         entity:
           filter:
             - domain: camera
     printer_pause_button:
       name: Printer Pause Button Entity
-      description: Bambu Lab printer pause button entity.
+      description: Bambu Lab printer pause button entity
       selector:
         entity:
           filter:
@@ -131,7 +111,7 @@ blueprint:
               domain: button
     printer_resume_button:
       name: Printer Resume Button Entity
-      description: Bambu Lab printer resume button entity.
+      description: Bambu Lab printer resume button entity
       selector:
         entity:
           filter:
@@ -139,7 +119,7 @@ blueprint:
               domain: button
     printer_stop_button:
       name: Printer Stop Button Entity
-      description: Bambu Lab printer stop button entity.
+      description: Bambu Lab printer stop button entity
       selector:
         entity:
           filter:
@@ -147,17 +127,15 @@ blueprint:
               domain: button
     printer_chamber_light:
       name: Printer Chamber Light
-      description: Bambu Lab printer chamber light (will be turned on if auto_turn_on_light is true).
+      description: Bambu Lab printer chamber light
       selector:
         entity:
           filter:
             - integration: bambu_lab
               domain: light
-
-    # --- Enhanced Inputs ---
     timeout_minutes:
       name: Detection Disable Timeout (Minutes)
-      description: Duration in minutes to disable detection when triggering the notification action.
+      description: Duration in minutes to disable detection actions and notifications when triggering the new notification action.
       default: 60
       selector:
         number:
@@ -165,236 +143,68 @@ blueprint:
           max: 1440 # Max 24 hours
           step: 1
           unit_of_measurement: minutes
-
-    failure_percentage_threshold:
-      name: Failure Detection Threshold (%)
-      description: Confidence percentage (0-100%) above which a main failure action (Pause/Stop/Warn) and notification are triggered. This should be LESS THAN the Emergency Action Threshold (%).
-      default: 60
-      selector:
-        select:
-          mode: dropdown
-          options:
-            - label: "30%"
-              value: 30
-            - label: "35%"
-              value: 35
-            - label: "40%"
-              value: 40
-            - label: "45%"
-              value: 45
-            - label: "50%"
-              value: 50
-            - label: "55%"
-              value: 55
-            - label: "60%"
-              value: 60
-            - label: "65%"
-              value: 65
-            - label: "70%"
-              value: 70
-            - label: "75%"
-              value: 75
-            - label: "80%"
-              value: 80
-            - label: "85%"
-              value: 85
-            - label: "90%"
-              value: 90
-            - label: "95%"
-              value: 95
-            - label: "100%"
-              value: 100
-
-    emergency_action_threshold:
-      name: Emergency Action Threshold (%)
-      description: >
-        Confidence percentage (0-100%) above which a failure action
-        (Pause/Stop/Warn) and notification are triggered, EVEN IF a timeout is active.
-        This should be HIGHER than the Failure Detection Threshold (%).
-      default: 90
-      selector:
-        select:
-          mode: dropdown
-          options:
-            - label: "70%"
-              value: 70
-            - label: "75%"
-              value: 75
-            - label: "80%"
-              value: 80
-            - label: "85%"
-              value: 85
-            - label: "90%"
-              value: 90
-            - label: "95%"
-              value: 95
-            - label: "100%"
-              value: 100
-
-    warn_below_failure_threshold:
-      name: Enable Warning Below Failure Threshold
-      description: If enabled, send a warning notification if confidence is above the dynamic warning threshold but below the user-defined failure threshold.
-      default: true
-      selector:
-        boolean:
-
     detection_disable_until_helper:
       name: Detection Disable Datetime Helper
-      description: An Input Datetime helper (Date and time) required for temporarily disabling detection. Must be created manually via Helpers menu.
+      description: >-
+        An Input Datetime helper (Date and time) required for temporarily disabling detection.
+        Must be created manually via "Settings" > "Devices & Services" > "Helpers".
       selector:
         entity:
           domain: input_datetime
 
-# --- Validation Variable ---
-# Check if user_failure_percentage_threshold is less than emergency_action_threshold
-# Used for blueprint validation check
-trigger_variables:
-  user_failure_below_emergency: "{{ (!input failure_percentage_threshold | int(0)) < (!input emergency_action_threshold | int(0)) }}"
-
+variables:
+  HOME_ASSISTANT_HOST_VAR: !input home_assistant_host
+  PRINTER_CAMERA_VAR: !input printer_camera
+  FAILURE_ACTION_VAR: !input failure_action
+  NOTIFICATION_SETTINGS_VAR: !input notification_settings
+  DETECTION_FREQUENCY_VAR: !input detection_frequency
 mode: single
 max_exceeded: silent
-
 trigger:
-  # Trigger on print start
+  # Print start trigger
   - platform: state
     entity_id:
       - !input printer_current_stage_sensor
     to: printing
     id: BAMBU_LAB_PRINTER_STAGE_CHANGE
-    alias: Trigger on print start
 
-  # Notification action triggers (Resume, Stop)
+  # Notification action triggers
+  - platform: event
+    event_type: mobile_app_notification_action
+    id: BAMBU_LAB_PAUSE_PRINTING
+    event_data:
+      action: BAMBU_LAB_PAUSE_PRINTING
   - platform: event
     event_type: mobile_app_notification_action
     id: BAMBU_LAB_RESUME_PRINTING
     event_data:
       action: BAMBU_LAB_RESUME_PRINTING
-    alias: Trigger on Resume notification action
   - platform: event
     event_type: mobile_app_notification_action
     id: BAMBU_LAB_STOP_PRINTING
     event_data:
       action: BAMBU_LAB_STOP_PRINTING
-    alias: Trigger on Stop notification action
-
-  # New Notification action trigger (Disable Detection)
   - platform: event
     event_type: mobile_app_notification_action
     id: BAMBU_LAB_DISABLE_DETECTION
     event_data:
       action: BAMBU_LAB_DISABLE_DETECTION
-    alias: Trigger on Disable Detection notification action
 
-  # Detection trigger (Time Pattern)
+  # Detection trigger
   - trigger: time_pattern
     id: BAMBU_LAB_DETECTION_TRIGGER
     seconds: !input detection_frequency
-    alias: Periodic detection trigger
-
-condition: [ ] # No global conditions
-
-# --- Define reusable sequence parts using YAML Anchors ---
-
-# Sequence block containing the Action Choose block (Pause/Stop/Warn)
-action_choose: &action_choose_anchor
-  - choose:
-      - conditions: # Pause Action
-          - condition: template
-            value_template: "{{ FAILURE_ACTION_VAR == 'pause' }}"
-        sequence:
-          - service: button.press
-            target: { entity_id: !input printer_pause_button }
-        alias: Execute Pause Action
-      - conditions: # Stop Action
-          - condition: template
-            value_template: "{{ FAILURE_ACTION_VAR == 'stop' }}"
-        sequence:
-          - service: button.press
-            target: { entity_id: !input printer_stop_button }
-        alias: Execute Stop Action
-      # If FAILURE_ACTION_VAR is 'warn', no action is taken here, falls through.
-    alias: Choose and Execute Failure Action
-
-# Sequence block containing the Notification Choose block (Critical/Standard).
-# Requires 'notification_title_var' variable to be set before calling.
-notification_choose: &notification_choose_anchor
-  - choose:
-      - conditions:
-          - condition: template
-            value_template: "{{ NOTIFICATION_SETTINGS_VAR == 'critical' }}"
-        sequence:
-          - service: !input notification_service
-            data:
-              title: "{{ notification_title_var }}" # Use variable for title, set in calling sequence
-              message: "Confidence: {{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) | default(0) * 100) | round(0) }}%" # Added default(0) for robustness
-              data:
-                image: "{{ HOME_ASSISTANT_HOST_VAR }}{{ state_attr(PRINTER_CAMERA_VAR, 'entity_picture') }}"
-                ttl: 0
-                priority: high
-                channel: alarm_stream
-                push:
-                  sound: { name: default, critical: 1, volume: 0.75 }
-                actions:
-                  - action: BAMBU_LAB_RESUME_PRINTING
-                    title: Resume Printing
-                  - action: BAMBU_LAB_STOP_PRINTING
-                    title: Stop Printing
-                  - action: BAMBU_LAB_DISABLE_DETECTION
-                    title: "Disable {{ !input timeout_minutes }} min"
-            alias: Send Critical Notification
-
-      - conditions:
-          - condition: template
-            value_template: "{{ NOTIFICATION_SETTINGS_VAR == 'standard' }}"
-        sequence:
-          - service: !input notification_service
-            data:
-              title: "{{ notification_title_var }}" # Use variable for title, set in calling sequence
-              message: "Confidence: {{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) | default(0) * 100) | round(0) }}%" # Added default(0) for robustness
-              data:
-                image: "{{ HOME_ASSISTANT_HOST_VAR }}{{ state_attr(PRINTER_CAMERA_VAR, 'entity_picture') }}"
-                actions:
-                  - action: BAMBU_LAB_RESUME_PRINTING
-                    title: Resume Printing
-                  - action: BAMBU_LAB_STOP_PRINTING
-                    title: Stop Printing
-                  - action: BAMBU_LAB_DISABLE_DETECTION
-                    title: "Disable {{ !input timeout_minutes }} min"
-            alias: Send Standard Notification
-
-      default: [] # If Notification Settings is 'none'
-    alias: Choose and Send Notification
-
-# Sequence block containing the metric resets + last notify time update.
-resets_tail: &resets_tail_anchor
-  - service: number.set_value # Reset frame counter, means, p_sum etc.
-    data: { value: 0 }
-    target:
-      entity_id:
-        - number.bambu_lab_p1_spaghetti_detection_current_frame_number
-        - number.bambu_lab_p1_spaghetti_detection_ewm_mean
-        - number.bambu_lab_p1_spaghetti_detection_rolling_mean_short
-        - number.bambu_lab_p1_spaghetti_detection_rolling_mean_long
-        - number.bambu_lab_p1_spaghetti_detection_normalized_p # Original Blueprint resets this here
-        - number.bambu_lab_p1_spaghetti_detection_adjusted_ewm_mean
-        - number.bambu_lab_p1_spaghetti_detection_p_sum
-    alias: Reset detection metrics
-
-  - service: datetime.set_value # Update last notify time
-    data: { datetime: >- "{{ now() }}" }
-    target: { entity_id: datetime.bambu_lab_p1_spaghetti_detection_last_notify_time }
-    alias: Update Last Notify Time
-
+condition: [ ]
 action:
   - choose:
-      # Branch for Print Start
+      # Print start actions
       - conditions:
           - condition: trigger
             id: BAMBU_LAB_PRINTER_STAGE_CHANGE
         sequence:
-          # Reset detection metrics and light on print start
           - service: number.set_value
-            data: { value: 0 }
+            data:
+              value: 0
             target:
               entity_id:
                 - number.bambu_lab_p1_spaghetti_detection_current_frame_number
@@ -404,7 +214,7 @@ action:
                 - number.bambu_lab_p1_spaghetti_detection_normalized_p
                 - number.bambu_lab_p1_spaghetti_detection_adjusted_ewm_mean
                 - number.bambu_lab_p1_spaghetti_detection_p_sum
-          - if: # Turn on printer light if auto_turn_on_light is true and light is off
+          - if:
             - condition: and
               conditions:
               - condition: state
@@ -412,76 +222,80 @@ action:
                 state: 'off'
               - condition: template
                 value_template: !input auto_turn_on_light
-              alias: Check if light should be on
             then:
               - service: light.turn_on
-                target: { entity_id: !input printer_chamber_light }
-              alias: Ensure light is on
-        alias: Handle Print Start
+                target:
+                  entity_id:
+                    - !input printer_chamber_light
 
-      # Branch for Resume/Stop Notification Actions
+      # Notification actions
       - conditions:
           - condition: trigger
             id:
+              - BAMBU_LAB_PAUSE_PRINTING
               - BAMBU_LAB_RESUME_PRINTING
               - BAMBU_LAB_STOP_PRINTING
         sequence:
           - choose:
-              - conditions: # Resume Action
+              - conditions:
+                  - condition: trigger
+                    id:
+                      - BAMBU_LAB_PAUSE_PRINTING
+                sequence:
+                  - service: button.press
+                    data: { }
+                    target:
+                      entity_id: !input printer_pause_button
+              - conditions:
                   - condition: trigger
                     id: BAMBU_LAB_RESUME_PRINTING
                 sequence:
                   - service: button.press
-                    target: { entity_id: !input printer_resume_button }
-                alias: Execute Resume Action
-              - conditions: # Stop Action
+                    data: { }
+                    target:
+                      entity_id: !input printer_resume_button
+              - conditions:
                   - condition: trigger
                     id: BAMBU_LAB_STOP_PRINTING
                 sequence:
                   - service: button.press
-                    target: { entity_id: !input printer_stop_button }
-                alias: Execute Stop Action
-        alias: Handle Resume/Stop Notification Actions
+                    data: { }
+                    target:
+                      entity_id: !input printer_stop_button
 
-      # Branch for new Disable Detection Notification Action
+      # Handle Disable Detection Notification Action
       - conditions:
           - condition: trigger
             id: BAMBU_LAB_DISABLE_DETECTION
         sequence:
-          # Set the detection disable helper to now + timeout_minutes
           - service: input_datetime.set_datetime
-            target: { entity_id: !input detection_disable_until_helper }
-            data: { datetime: "{{ now() + timedelta(minutes=!input timeout_minutes | int(0)) }}" }
+            target:
+              entity_id: !input detection_disable_until_helper
+            data:
+              datetime: "{{ now() + timedelta(minutes=!input timeout_minutes | int(0)) }}"
           - service: system_log.write # Optional log entry
             data:
-              message: "Bambu Lab Spaghetti Detection: Temporarily disabled for {{ !input timeout_minutes }} minutes via notification action."
+              message: "Bambu Lab Spaghetti Detection: Temporarily disabled actions/notifications for {{ !input timeout_minutes }} minutes via notification action."
               level: info
-        alias: Handle Disable Detection Notification Action
-
-      # Main Detection Logic (Time Pattern Trigger)
+      # Notification actions
       - conditions:
           - condition: trigger
             id: BAMBU_LAB_DETECTION_TRIGGER
         sequence:
-          # Stop if printer is not running
           - if:
               - condition: not
                 conditions:
                   - condition: state
                     entity_id: !input printer_print_status_sensor
                     state: running
-              alias: Stop if printer not running
-            then: { stop: "" }
-
-          # Stop if current second does not match frequency
+            then:
+              - stop: ""
           - if:
               - condition: template
                 value_template: >-
-                  {{ now().second % DETECTION_FREQUENCY_VAR | replace("/", "") | int(0) > 0 }}
-              alias: Stop if not the correct second
-            then: { stop: "" }
-
-          # Turn on printer light if auto_turn_on_light is true and light is off
+                  {{ now().second % (DETECTION_FREQUENCY_VAR | replace("/", "") | int(0)) > 0 }}
+            then:
+              - stop: ""
           - if:
             - condition: and
               conditions:
@@ -490,240 +304,246 @@ action:
                 state: 'off'
               - condition: template
                 value_template: !input auto_turn_on_light
-              alias: Check if light should be on
             then:
               - service: light.turn_on
-                target: { entity_id: !input printer_chamber_light }
-              alias: Ensure light is on
-
-          # --- Validation Check: Failure Threshold must be < Emergency Threshold ---
-          # This check is run on every trigger cycle after initial stops
-          - if: # Check if Validation variable is false (Failure Threshold < Emergency Threshold)
-              - condition: template
-                value_template: "{{ not trigger_variables.user_failure_below_emergency }}"
-              alias: Validation Check: Failure < Emergency Threshold
-            then:
-              sequence:
-                - service: system_log.write # Log an error if validation fails
-                  data:
-                    message: "Bambu Lab Spaghetti Detection: Configuration Error! 'Failure Detection Threshold (%)' ({{ !input failure_percentage_threshold }}) must be less than 'Emergency Action Threshold (%)' ({{ !input emergency_action_threshold }})."
-                    level: error
-                  alias: Log Validation Error
-                - stop: "" # Stop the sequence if validation fails
-                alias: Stop due to Validation Error
-              alias: Handle Validation Error
-
-
-          # Call Obico ML API for prediction
-          - service: bambu_lab_p1_spaghetti_detection.predict # Assuming this service exists via custom integration
+                target:
+                  entity_id:
+                    - !input printer_chamber_light
+          - service: bambu_lab_p1_spaghetti_detection.predict
             data:
               obico_host: !input obico_host
               obico_auth_token: !input obico_auth_token
               image_url: "{{ HOME_ASSISTANT_HOST_VAR }}{{ state_attr(PRINTER_CAMERA_VAR, 'entity_picture') }}"
             response_variable: result
-            alias: Call Obico ML API
-
-          # --- Error Handling after API call ---
-          - if: # Check if API call failed or returned unexpected results
-              - condition: template
-                value_template: "{{ result is none or result.result is not defined or result.result.detections is not defined }}"
-              alias: Check if API call failed or invalid data
-            then:
-              sequence:
-                - service: system_log.write
-                  data:
-                    message: "Bambu Lab Spaghetti Detection: API call failed or returned invalid data. result: {{ result }}"
-                    level: error
-                  alias: Log API error
-                - stop: ""
-                  alias: Stop if API call failed
-              alias: Handle API Call Failure
-
-          # Update prediction-related entities (Calculations from original blueprint)
-          # Using original calculations from the blueprint. float(0) handles initial non-numeric states.
-          - service: number.set_value
-            data: { value: "{{ result.result.detections | map(attribute=1) | sum | float(0) }}" }
-            target: { entity_id: number.bambu_lab_p1_spaghetti_detection_p_sum }
-            alias: Set p_sum (Sum of detection scores)
-
-          - service: number.set_value
-            data: { value: "{{ states('number.bambu_lab_p1_spaghetti_detection_current_frame_number') | float(0) + 1 }}" }
-            target: { entity_id: number.bambu_lab_p1_spaghetti_detection_current_frame_number }
-            alias: Increment current_frame_number (per print)
-
-          - service: number.set_value
-            data: { value: "{{ states('number.bambu_lab_p1_spaghetti_detection_lifetime_frame_number') | float(0) + 1 }}" }
-            target: { entity_id: number.bambu_lab_p1_spaghetti_detection_lifetime_frame_number }
-            alias: Increment lifetime_frame_number (total)
 
           - service: number.set_value
             data:
-              # EWM Mean calculation (alpha = 2 / (period + 1), period = 12)
+              value: "{{ result.result.detections | map(attribute=1) | sum | float(0) }}"
+            target:
+              entity_id: number.bambu_lab_p1_spaghetti_detection_p_sum
+
+          - service: number.set_value
+            data:
+              value: "{{ states('number.bambu_lab_p1_spaghetti_detection_current_frame_number') | float(0) + 1 }}"
+            target:
+              entity_id: number.bambu_lab_p1_spaghetti_detection_current_frame_number
+
+          - service: number.set_value
+            data:
+              value: "{{ states('number.bambu_lab_p1_spaghetti_detection_lifetime_frame_number') | float(0) + 1 }}"
+            target:
+              entity_id: number.bambu_lab_p1_spaghetti_detection_lifetime_frame_number
+
+          - service: number.set_value
+            data:
               value: "{{ (states('number.bambu_lab_p1_spaghetti_detection_p_sum') | float(0)) * (2 / (12 + 1)) + (states('number.bambu_lab_p1_spaghetti_detection_ewm_mean') | float(0)) * (1 - (2 / (12 + 1))) }}"
-            target: { entity_id: number.bambu_lab_p1_spaghetti_detection_ewm_mean }
-            alias: Calculate EWM Mean
+            target:
+              entity_id: number.bambu_lab_p1_spaghetti_detection_ewm_mean
 
           - service: number.set_value
             data:
-              # Short Rolling Mean calculation (period = 310) - Handles initial frames below period
               value: "{{ (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_short') | float(0)) + ((states('number.bambu_lab_p1_spaghetti_detection_p_sum') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_short') | float(0))) / (310 if 310 <= (states('number.bambu_lab_p1_spaghetti_detection_current_frame_number') | float(0)) else (states('number.bambu_lab_p1_spaghetti_detection_current_frame_number') | float(0)) + 1) }}"
-            target: { entity_id: number.bambu_lab_p1_spaghetti_detection_rolling_mean_short }
-            alias: Calculate Short Rolling Mean
+            target:
+              entity_id: number.bambu_lab_p1_spaghetti_detection_rolling_mean_short
 
           - service: number.set_value
             data:
-              # Long Rolling Mean calculation (period = 7200) - Handles initial frames below period
               value: "{{ (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_long') | float(0)) + ((states('number.bambu_lab_p1_spaghetti_detection_p_sum') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_long') | float(0))) / (7200 if 7200 <= (states('number.bambu_lab_p1_spaghetti_detection_lifetime_frame_number') | float(0)) else (states('number.bambu_lab_p1_spaghetti_detection_lifetime_frame_number') | float(0)) + 1) }}"
-            target: { entity_id: number.bambu_lab_p1_spaghetti_detection_rolling_mean_long }
-            alias: Calculate Long Rolling Mean
+            target:
+              entity_id: number.bambu_lab_p1_spaghetti_detection_rolling_mean_long
 
-          # Stop if not enough frames have been processed yet (initial phase of the print)
           - if:
               - condition: numeric_state
                 entity_id: number.bambu_lab_p1_spaghetti_detection_current_frame_number
-                below: 30 # Original threshold for sufficient data
-              alias: Stop if current_frame_num < 30
-            then: { stop: "" }
-
-          # Calculate adjusted_ewm_mean (which is used as 'p' for threshold comparison)
-          - service: number.set_value
-            data: >-
-              {{ (states('number.bambu_lab_p1_spaghetti_detection_ewm_mean') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_long') | float(0)) }}
-            target: { entity_id: number.bambu_lab_p1_spaghetti_detection_adjusted_ewm_mean }
-            alias: Calculate p (Adjusted EWM Mean)
-
-          # Calculate rolling_mean_diff and dynamic thresholds (warning and failure)
-          - service: number.set_value
-            data: >-
-              {{ ((states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_short') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_long') | float(0))) * 3.8 }} # Original factor
-            target: { entity_id: number.bambu_lab_p1_spaghetti_detection_rolling_mean_diff }
-            alias: Calculate Rolling Mean Diff
+                below: 30
+            then:
+              - stop: ""
+            alias: "if current_frame_num < 30" # Alias for the if-condition
 
           - service: number.set_value
             data:
-              # Clamp dynamic warning threshold between 0.33 and 0.78 (Original limits)
+              value: >-
+                {{ (states('number.bambu_lab_p1_spaghetti_detection_ewm_mean') | float) - (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_long') | float) }}
+            target:
+              entity_id: number.bambu_lab_p1_spaghetti_detection_adjusted_ewm_mean
+
+          - service: number.set_value
+            data:
+              value: >-
+                {{ ((states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_short') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_long') | float(0))) * 3.8 }}
+            target:
+              entity_id: number.bambu_lab_p1_spaghetti_detection_rolling_mean_diff
+
+          - service: number.set_value
+            data:
               value: >-
                 {{ min(0.78, max(0.33, (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_diff') | float(0)))) }}
-            target: { entity_id: number.bambu_lab_p1_spaghetti_detection_thresh_warning }
-            alias: Calculate Dynamic Warning Threshold
+            target:
+              entity_id: number.bambu_lab_p1_spaghetti_detection_thresh_warning
 
-          - service: number.set_value
-            data:
-              # Dynamic failure threshold is 1.75 times the warning threshold (Original factor)
-              value: >-
-                {{ (states('number.bambu_lab_p1_spaghetti_detection_thresh_warning') | float(0)) * 1.75 }}
-            target: { entity_id: number.bambu_lab_p1_spaghetti_detection_thresh_failure }
-            alias: Calculate Dynamic Failure Threshold
-
-          # Calculate normalized_p (0-1 confidence) - Uses original logic based on 'p' vs dynamic thresholds
-          # This is the value used for the Confidence % display.
           - service: number.set_value
             data:
               value: >-
-                {% set p_val = states('number.bambu_lab_p1_spaghetti_detection_adjusted_ewm_mean') | float(0) %}
-                {% set warning_thresh = states('number.bambu_lab_p1_spaghetti_detection_thresh_warning') | float(0) %}
-                {% set failure_thresh = states('number.bambu_lab_p1_spaghetti_detection_thresh_failure') | float(0) %}
+                {{ (states('number.bambu_lab_p1_spaghetti_detection_thresh_warning') | float(0)) * 1.75 }}
+            target:
+              entity_id: number.bambu_lab_p1_spaghetti_detection_thresh_failure
 
-                {% if p_val >= failure_thresh and failure_thresh > 0 %} # If p >= dynamic failure threshold
-                  {{ min(1.0, max(0.6667, (((p_val - failure_thresh) * (1.0 - 0.6667)) / (failure_thresh * 1.5 - failure_thresh) if (failure_thresh * 1.5 - failure_thresh) > 0 else 0) + 0.6667)) }}
-                {% elif p_val >= warning_thresh and warning_thresh > 0 %} # If p >= dynamic warning threshold but < failure threshold
-                   {{ min(0.6667, max(0.3333, (((p_val - warning_thresh) * (0.6667 - 0.3333)) / (failure_thresh - warning_thresh) if (failure_thresh - warning_thresh) > 0 else 0) + 0.3333)) }}
-                {% else %} # If p < dynamic warning threshold
-                  {{ min(0.3333, max(0, (p_val * 0.3333) / (warning_thresh if warning_thresh > 0 else 1))) }}
-                {% endif %}
-            target: { entity_id: number.bambu_lab_p1_spaghetti_detection_normalized_p }
-            alias: Calculate Normalized Confidence (0-1)
+          - service: number.set_value
+            data:
+              value: >-
+                {{ (states('number.bambu_lab_p1_spaghetti_detection_ewm_mean') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_long') | float(0)) }}
+            target:
+              entity_id: number.bambu_lab_p1_spaghetti_detection_p
 
-          # --- Start Main Logic Dispatcher based on Thresholds ---
-          # This choose block determines which action/notification sequence to run based on confidence level.
           - choose:
-              # Choice 1: Emergency Action Threshold met (OVERRIDE ALL, ignore timeout)
               - conditions:
-                  - condition: template
-                    value_template: >-
-                      {{ ((states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) | default(0) * 100) | round(0)) >= (!input emergency_action_threshold | int(0)) }}
-                  alias: Confidence >= Emergency Threshold (%)
-                sequence:
-                  # Set notification title variable for this sequence
-                  - variables:
-                      notification_title_var: "Bambu Lab - EMERGENCY: Spaghetti Detected" # Clear Emergency Title
-                    alias: Set Emergency Notification Title
-
-                  # Execute Action Choose block
-                  - *action_choose_anchor
-
-                  # Execute Notification Choose block and Resets
-                  - *notification_choose_anchor
-                  - *resets_tail_anchor
-                alias: Execute Emergency Action Sequence
-
-              # Choice 2: Warn Below Threshold applies (Notify Only)
-              - conditions:
-                  - condition: template # Check if "Warn Below Threshold" boolean is true
-                    value_template: "{{ !input warn_below_failure_threshold }}"
-                    alias: "Warn Below Threshold Enabled"
-                  - condition: numeric_state # Check if 'p' is above the dynamic Warning Threshold
+                  - condition: numeric_state
                     entity_id: number.bambu_lab_p1_spaghetti_detection_p
-                    above: number.bambu_lab_p1_spaghetti_detection_thresh_warning
-                    alias: "p > Dynamic Warning Threshold"
-                  - condition: template # Check if scaled Confidence (%) is BELOW user Failure Threshold (%)
-                    value_template: >-
-                      {{ ((states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) | default(0) * 100) | round(0)) < (!input failure_percentage_threshold | int(0)) }}
-                    alias: "Confidence < User Failure Threshold (%)"
-                  # Note: This condition is implicitly also checking < Emergency Threshold because Choice 1 is first.
-                alias: Check if Warning Below Threshold applies
+                    above: !input bambu_lab_p1_spaghetti_detection_thresh_failure # Assuming this is an entity, if not, it needs to be a number
                 sequence:
-                  # Set notification title variable for this sequence
-                  - variables:
-                      notification_title_var: "Bambu Lab - Potenzielles Problem (Warnung)" # Warning title
-                    alias: Set Warning Notification Title
-
-                  # Execute Notification Choose block and Resets (Notification only for warning)
-                  - *notification_choose_anchor
-                  - *resets_tail_anchor
-                alias: Execute Warning Below Threshold Sequence
-
-              # Choice 3: Main Failure Threshold met (Action + Notify) - Subject to Timeout
+                  - service: number.set_value
+                    data:
+                      value: >-
+                        {{ min(1.0, max(2.0 / 3.0, ((((states('number.bambu_lab_p1_spaghetti_detection_p') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_thresh_failure') | float(0))) * (1.0 - 2.0 / 3.0)) / (((states('number.bambu_lab_p1_spaghetti_detection_thresh_failure') | float(0)) * 1.5 - (states('number.bambu_lab_p1_spaghetti_detection_thresh_failure') | float(0))) if ((states('number.bambu_lab_p1_spaghetti_detection_thresh_failure') | float(0)) * 1.5 - (states('number.bambu_lab_p1_spaghetti_detection_thresh_failure') | float(0))) != 0 else 1)) + 2.0 / 3.0)) }}
+                    target:
+                      entity_id: number.bambu_lab_p1_spaghetti_detection_normalized_p
               - conditions:
-                  # Check if the scaled Confidence (%) is GREATER THAN OR EQUAL TO the user-defined Failure Threshold (%)
-                  # Note: This is implicitly checking < Emergency Threshold because Choice 1 is first.
-                  - condition: template
-                    value_template: >-
-                      {{ ((states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) | default(0) * 100) | round(0)) >= (!input failure_percentage_threshold | int(0)) }}
-                    alias: "Confidence >= User Failure Threshold (%)"
-                alias: Check if Main Failure applies
+                  - condition: numeric_state
+                    entity_id: number.bambu_lab_p1_spaghetti_detection_p
+                    above: !input bambu_lab_p1_spaghetti_detection_thresh_warning # Assuming this is an entity
                 sequence:
-                  # Check if detection is temporarily disabled (Timeout)
-                  - if:
-                      - condition: template
-                        value_template: >-
-                          {{ now() > states(!input detection_disable_until_helper) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) }}
-                      alias: Check if detection is temporarily disabled
-                    then: { stop: "" }
-                    alias: Stop if detection is temporarily disabled
+                  - service: number.set_value
+                    data:
+                      value: >-
+                        {{ min(2.0 / 3.0, max(1.0 / 3.0, ((((states('number.bambu_lab_p1_spaghetti_detection_p') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_thresh_warning') | float(0))) * (2.0 / 3.0 - 1.0 / 3.0)) / (((states('number.bambu_lab_p1_spaghetti_detection_thresh_failure') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_thresh_warning') | float(0))) if ((states('number.bambu_lab_p1_spaghetti_detection_thresh_failure') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_thresh_warning') | float(0))) != 0 else 1)) + 1.0 / 3.0)) }}
+                    target:
+                      entity_id: number.bambu_lab_p1_spaghetti_detection_normalized_p
+            default:
+              - service: number.set_value
+                data:
+                  value: >-
+                    {{ min(1.0 / 3.0, max(0, ((states('number.bambu_lab_p1_spaghetti_detection_p') | float(0)) * 1.0 / 3.0) / ((states('number.bambu_lab_p1_spaghetti_detection_thresh_warning') | float(0)) if (states('number.bambu_lab_p1_spaghetti_detection_thresh_warning') | float(0)) != 0 else 1))) }}
+                target:
+                  entity_id: number.bambu_lab_p1_spaghetti_detection_normalized_p
 
-                  # Set notification title variable for this sequence
-                  - variables:
-                      notification_title_var: "Bambu Lab - Spaghetti Detected" # Original failure title
-                    alias: Set Failure Notification Title
+          # if adjusted_ewm_mean < THRESHOLD_LOW
+          - if:
+              - condition: numeric_state
+                entity_id: number.bambu_lab_p1_spaghetti_detection_adjusted_ewm_mean
+                below: 0.38
+            then:
+              - stop: ""
 
-                  # Execute Action Choose block
-                  - *action_choose_anchor
+          #  if adjusted_ewm_mean <= THRESHOLD_HIGH and adjusted_ewm_mean <= rolling_mean_diff
+          - if:
+              - condition: and
+                conditions:
+                  - condition: numeric_state
+                    entity_id: number.bambu_lab_p1_spaghetti_detection_adjusted_ewm_mean
+                    below: 0.78
+                  - condition: numeric_state
+                    entity_id: number.bambu_lab_p1_spaghetti_detection_adjusted_ewm_mean
+                    below: number.bambu_lab_p1_spaghetti_detection_rolling_mean_diff
+            then:
+              - stop: ""
 
-                  # Execute Notification Choose block and Resets
-                  - *notification_choose_anchor
-                  - *resets_tail_anchor
-                alias: Execute Main Failure Sequence
+          # if now() - last_notify_time < 1min
+          - if:
+              - condition: template
+                value_template: >-
+                  {{ now() - states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime | as_local < timedelta(minutes=1) }}
+            then:
+              - stop: ""
+            alias: "if now() - last_notify_time < 1min" # Alias for the if-condition
 
+          # Check if detection is temporarily disabled by user timeout
+          - if:
+              - condition: template
+                value_template: >-
+                  {{ now() < states(!input detection_disable_until_helper) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) }}
+            then:
+              - service: system_log.write # Optional: Log that action was skipped due to timeout
+                data:
+                  message: "Bambu Lab Spaghetti Detection: Action/Notification skipped due to active timeout until {{ states(!input detection_disable_until_helper) }}."
+                  level: info
+              - stop: "Detection temporarily disabled by timeout."
+            alias: "Check if detection is temporarily disabled (within timeout period)"
 
-              # Default: No thresholds met that trigger action/notification logic
-              default: []
-              alias: No thresholds met (Default)
-            alias: Threshold Dispatcher Choose
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ FAILURE_ACTION_VAR == 'pause' }}"
+                sequence:
+                  - service: button.press
+                    data: { }
+                    target:
+                      entity_id: !input printer_pause_button
+              - conditions:
+                  - condition: template
+                    value_template: "{{ FAILURE_ACTION_VAR == 'stop' }}"
+                sequence:
+                  - service: button.press
+                    data: { }
+                    target:
+                      entity_id: !input printer_stop_button
 
-          # Default branch of the main action choose (time pattern) - nothing happens if thresholds not met
-          default: []
-
-      # Default branch of the main action choose (at the very end) - nothing happens if no other trigger matches
-      default: []
-    alias: Handle various triggers
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ NOTIFICATION_SETTINGS_VAR == 'critical' }}"
+                sequence:
+                  - service: !input notification_service
+                    data:
+                      title: "Bambu Lab - Spaghetti Detected"
+                      message: "Confidence: {{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) | int }}%"
+                      data:
+                        image: "{{ HOME_ASSISTANT_HOST_VAR }}{{ state_attr(PRINTER_CAMERA_VAR, 'entity_picture') }}"
+                        ttl: 0
+                        priority: high
+                        channel: alarm_stream
+                        push:
+                          sound:
+                            name: default
+                            critical: 1
+                            volume: 0.75
+                        actions:
+                          - action: BAMBU_LAB_RESUME_PRINTING
+                            title: Resume Printing
+                          - action: BAMBU_LAB_STOP_PRINTING
+                            title: Stop Printing
+                          - action: BAMBU_LAB_DISABLE_DETECTION
+                            title: "Disable {{ !input timeout_minutes }} min"
+              - conditions:
+                  - condition: template
+                    value_template: "{{ NOTIFICATION_SETTINGS_VAR == 'standard' }}"
+                sequence:
+                  - service: !input notification_service
+                    data:
+                      title: "Bambu Lab - Spaghetti Detected"
+                      message: "Confidence: {{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) | int }}%"
+                      data:
+                        image: "{{ HOME_ASSISTANT_HOST_VAR }}{{ state_attr(PRINTER_CAMERA_VAR, 'entity_picture') }}"
+                        actions:
+                          - action: BAMBU_LAB_RESUME_PRINTING
+                            title: Resume Printing
+                          - action: BAMBU_LAB_STOP_PRINTING
+                            title: Stop Printing
+                          - action: BAMBU_LAB_DISABLE_DETECTION
+                            title: "Disable {{ !input timeout_minutes }} min"
+          - service: number.set_value
+            data:
+              value: 0
+            target:
+              entity_id:
+                - number.bambu_lab_p1_spaghetti_detection_current_frame_number
+                - number.bambu_lab_p1_spaghetti_detection_ewm_mean
+                - number.bambu_lab_p1_spaghetti_detection_rolling_mean_short
+                - number.bambu_lab_p1_spaghetti_detection_rolling_mean_long
+                - number.bambu_lab_p1_spaghetti_detection_normalized_p
+                - number.bambu_lab_p1_spaghetti_detection_adjusted_ewm_mean
+                - number.bambu_lab_p1_spaghetti_detection_p_sum
+          - service: datetime.set_value
+            data:
+              datetime: "{{ now() }}"
+            target:
+              entity_id: datetime.bambu_lab_p1_spaghetti_detection_last_notify_time
