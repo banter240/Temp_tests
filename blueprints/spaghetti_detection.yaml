@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.80
+  name: Bambu Lab - Spaghetti Detection v1.82
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -580,8 +580,7 @@ action: # Main automation actions
                 {% set hours = (minutes % (24 * 60)) // 60 -%}
                 {% set remaining_minutes = minutes % 60 -%}
                 Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m
-                {%- else -%}{%- endif -%}, # Comma is important here for YAML structure
-              _rendered_persistent_message: "{{ _persistent_notification_message_template_str | template }}"
+                {%- else -%}{%- endif -%}
           # Simulate a high confidence value by setting the normalized_p number helper
           - service: number.set_value
             target:
@@ -612,7 +611,7 @@ action: # Main automation actions
                 data:
                   notification_id: "bambu_spaghetti_alert_debug"
                   title: "{{ notification_title_var }}"
-                  message: "{{ _rendered_persistent_message }}"
+                  message: !ref _persistent_notification_message_template_str
                 alias: "Create DEBUG Persistent Notification"
           # Update last notify time to respect cooldown for debug notifications
           - service: datetime.set_value
@@ -960,8 +959,7 @@ action: # Main automation actions
                         {% set hours = (minutes % (24 * 60)) // 60 -%}
                         {% set remaining_minutes = minutes % 60 -%}
                         Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m
-                        {%- else -%}{%- endif -%}, # Comma is important here
-                      _rendered_persistent_message: "{{ _persistent_notification_message_template_str | template }}"
+                        {%- else -%}{%- endif -%}
                   - choose: # Use the anchored choose content
                       *action_choose_anchor # Printer action (pause/stop)
                     alias: "Execute Anchored Action Choose (Emergency)"
@@ -977,7 +975,7 @@ action: # Main automation actions
                         data:
                           notification_id: "bambu_spaghetti_alert_emergency"
                           title: "{{ notification_title_var }}"
-                          message: "{{ _rendered_persistent_message }}"
+                          message: !ref _persistent_notification_message_template_str
                         alias: "Create EMERGENCY Persistent Notification"
                   - service: number.set_value # Reset all relevant detection metrics.
                     data: { value: 0 }
@@ -1045,8 +1043,7 @@ action: # Main automation actions
                         {% set hours = (minutes % (24 * 60)) // 60 -%}
                         {% set remaining_minutes = minutes % 60 -%}
                         Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m
-                        {%- else -%}{%- endif -%}, # Comma is important here
-                      _rendered_persistent_message: "{{ _persistent_notification_message_template_str | template }}"
+                        {%- else -%}{%- endif -%}
                   - choose: # Use the anchored choose content
                       *action_choose_anchor # Printer action (pause/stop)
                     alias: "Execute Anchored Action Choose (Main Failure)"
@@ -1062,7 +1059,7 @@ action: # Main automation actions
                         data:
                           notification_id: "bambu_spaghetti_alert_main"
                           title: "{{ notification_title_var }}"
-                          message: "{{ _rendered_persistent_message }}"
+                          message: !ref _persistent_notification_message_template_str
                         alias: "Create MAIN Persistent Notification"
                   - service: number.set_value # Reset all relevant detection metrics.
                     data: { value: 0 }
@@ -1135,8 +1132,7 @@ action: # Main automation actions
                         {% set hours = (minutes % (24 * 60)) // 60 -%}
                         {% set remaining_minutes = minutes % 60 -%}
                         Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m
-                        {%- else -%}{%- endif -%}, # Comma is important here
-                      _rendered_persistent_message: "{{ _persistent_notification_message_template_str | template }}"
+                        {%- else -%}{%- endif -%}
                   # Only send notification, no printer action for this warning case
                   - choose: # Use the anchored choose content
                       *notification_choose_anchor # Notification
@@ -1150,7 +1146,7 @@ action: # Main automation actions
                         data:
                           notification_id: "bambu_spaghetti_alert_warning"
                           title: "{{ notification_title_var }}"
-                          message: "{{ _rendered_persistent_message }}"
+                          message: !ref _persistent_notification_message_template_str
                         alias: "Create WARNING Persistent Notification"
                   # For warnings, only update last_notify_time to respect cooldown, do not reset all detection metrics.
                   - service: datetime.set_value
