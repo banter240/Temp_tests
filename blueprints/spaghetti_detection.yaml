@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.67
+  name: Bambu Lab - Spaghetti Detection v1.68
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -164,11 +164,17 @@ blueprint:
       default: true
       selector:
         boolean:
+    auto_turn_on_light: # Related to printer_chamber_light
+      name: Automatically Turn On Printer Lights
+      description: Turns on printer lights before spaghetti detection operation (if chamber light is selected).
+      default: true
+      selector:
+        boolean:
 
     # Printer Entities
     printer_print_status_sensor:
       name: Printer Print Status Sensor
-      description: Bambu Lab printer print status sensor
+      description: Bambu Lab printer print status sensor.
       selector:
         entity:
           filter:
@@ -177,16 +183,23 @@ blueprint:
               device_class: enum
     printer_current_stage_sensor:
       name: Printer Current Stage Sensor
-      description: Bambu Lab printer current stage sensor
+      description: Bambu Lab printer current stage sensor.
       selector:
         entity:
           filter:
             - integration: bambu_lab
               domain: sensor
               device_class: enum
+    printer_camera:
+      name: Printer Camera Entity
+      description: Bambu Lab printer camera entity (used for snapshots).
+      selector:
+        entity:
+          filter:
+            - domain: camera
     printer_pause_button:
       name: Printer Pause Button Entity
-      description: Bambu Lab printer pause button entity
+      description: Bambu Lab printer pause button entity.
       selector:
         entity:
           filter:
@@ -194,7 +207,7 @@ blueprint:
               domain: button
     printer_resume_button:
       name: Printer Resume Button Entity
-      description: Bambu Lab printer resume button entity
+      description: Bambu Lab printer resume button entity.
       selector:
         entity:
           filter:
@@ -202,33 +215,68 @@ blueprint:
               domain: button
     printer_stop_button:
       name: Printer Stop Button Entity
-      description: Bambu Lab printer stop button entity
+      description: Bambu Lab printer stop button entity.
       selector:
         entity:
           filter:
             - integration: bambu_lab
               domain: button
-    printer_camera:
-      name: Printer Camera Entity
-      description: Bambu Lab printer camera entity
-      selector:
-        entity:
-          filter:
-            - domain: camera
     printer_chamber_light:
-      name: Printer Chamber Light
-      description: Bambu Lab printer chamber light
+      name: (Optional) Printer Chamber Light
+      description: Bambu Lab printer chamber light. If selected, 'Automatically Turn On Printer Lights' can be used.
+      default: "" # Make it truly optional
       selector:
         entity:
           filter:
             - integration: bambu_lab
               domain: light
-    auto_turn_on_light: # Related to printer_chamber_light
-      name: Automatically Turn On Printer Lights
-      description: Turns on printer lights before spaghetti detection operation (if chamber light is selected).
+
+    # Optional Sensors for Detailed Notifications
+    printer_task_name_sensor:
+      name: (Optional) Printer Task Name Sensor
+      description: Sensor entity that shows the current print job's filename.
+      default: ""
+      selector:
+        entity:
+          filter:
+            - integration: bambu_lab
+              domain: sensor
+    printer_print_progress_sensor:
+      name: (Optional) Printer Print Progress Sensor
+      description: Sensor entity that shows the current print job's progress percentage.
+      default: ""
+      selector:
+        entity:
+          filter:
+            - integration: bambu_lab
+              domain: sensor
+    printer_remaining_time_sensor:
+      name: (Optional) Printer Remaining Time Sensor
+      description: Sensor entity that shows the remaining time for the current print job (in minutes).
+      default: ""
+      selector:
+        entity:
+          filter:
+            - integration: bambu_lab
+              domain: sensor
+
+    # Notification Settings (Continued)
+    include_snapshot_in_notification:
+      name: Include Snapshot in Notifications
+      description: If enabled, a camera snapshot will be taken and included in notifications.
       default: true
       selector:
         boolean:
+    notification_cooldown_seconds:
+      name: Notification Cooldown (Seconds)
+      description: "Minimum time in seconds between notifications for non-emergency events (Default: 60 seconds)."
+      default: 60
+      selector:
+        number:
+          min: 10 # Minimum 10 seconds
+          max: 3600 # Maximum 1 hour
+          step: 1
+          unit_of_measurement: "s"
 
     # Timeout Function
     detection_disable_until_helper:
@@ -262,6 +310,7 @@ blueprint:
       selector:
         boolean:
 
+    # --- Debug Mode ---
     # Debug Mode
     debug_mode_enabled:
       name: Enable Debug Mode
@@ -290,35 +339,6 @@ blueprint:
           max: 100
           step: 1
 
-    # Optional Sensors for Detailed Notifications
-    printer_task_name_sensor:
-      name: (Optional) Printer Task Name Sensor
-      description: Sensor entity that shows the current print job's filename.
-      default: ""
-      selector:
-        entity:
-          filter:
-            - integration: bambu_lab
-              domain: sensor
-    printer_print_progress_sensor:
-      name: (Optional) Printer Print Progress Sensor
-      description: Sensor entity that shows the current print job's progress percentage.
-      default: ""
-      selector:
-        entity:
-          filter:
-            - integration: bambu_lab
-              domain: sensor
-    printer_remaining_time_sensor:
-      name: (Optional) Printer Remaining Time Sensor
-      description: Sensor entity that shows the remaining time for the current print job (in minutes).
-      default: ""
-      selector:
-        entity:
-          filter:
-            - integration: bambu_lab
-              domain: sensor
-
 variables:
   HOME_ASSISTANT_HOST_VAR: !input home_assistant_host
   PRINTER_CAMERA_VAR: !input printer_camera
@@ -331,6 +351,8 @@ variables:
   WARN_BELOW_FAILURE_THRESHOLD_VAR: !input warn_below_failure_threshold
   TIMEOUT_MINUTES_VAR: !input timeout_minutes
   DETECTION_DISABLE_UNTIL_HELPER_VAR: !input detection_disable_until_helper
+  INCLUDE_SNAPSHOT_VAR: !input include_snapshot_in_notification
+  NOTIFICATION_COOLDOWN_SECONDS_VAR: !input notification_cooldown_seconds
 
 
   # --- YAML Anchors for Reusable Action Sequences ---
@@ -372,8 +394,10 @@ variables:
               {{ _remaining_time_info_content | default('') }}
               {% endif -%}
               {# Optional: {{ "\n" }}Debug Img URL: {{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }} #}
-            data:
-              image: "{{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}" # Add cache buster
+            data: >
+              {% set ns = namespace(image_data={}) %}
+              {% if INCLUDE_SNAPSHOT_VAR %} {% set ns.image_data = ns.image_data | extend({'image': _effective_notification_host | default('') ~ '/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v=' ~ now().timestamp() | int}) %} {% endif %}
+              {{ ns.image_data | extend({
               ttl: 0
               priority: high
               channel: alarm_stream
@@ -381,7 +405,7 @@ variables:
               actions:
                 - { action: BAMBU_LAB_RESUME_PRINTING, title: Resume Printing }
                 - { action: BAMBU_LAB_STOP_PRINTING, title: Stop Printing }
-                - { action: BAMBU_LAB_DISABLE_DETECTION, title: "{{ disable_action_title_var | default('Disable Detection') }}" }
+                - { action: BAMBU_LAB_DISABLE_DETECTION, title: "{{ disable_action_title_var | default('Disable Detection') }}" } }) }}
           alias: Send Critical Notification
     - conditions:
         - condition: template
@@ -402,12 +426,14 @@ variables:
               {{ _remaining_time_info_content | default('') }}
               {% endif -%}
               {# Optional: {{ "\n" }}Debug Img URL: {{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }} #}
-            data:
-              image: "{{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}" # Add cache buster
+            data: >
+              {% set ns = namespace(image_data={}) %}
+              {% if INCLUDE_SNAPSHOT_VAR %} {% set ns.image_data = ns.image_data | extend({'image': _effective_notification_host | default('') ~ '/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v=' ~ now().timestamp() | int}) %} {% endif %}
+              {{ ns.image_data | extend({
               actions:
                 - { action: BAMBU_LAB_RESUME_PRINTING, title: Resume Printing }
                 - { action: BAMBU_LAB_STOP_PRINTING, title: Stop Printing }
-                - { action: BAMBU_LAB_DISABLE_DETECTION, title: "{{ disable_action_title_var | default('Disable Detection') }}" }
+                - { action: BAMBU_LAB_DISABLE_DETECTION, title: "{{ disable_action_title_var | default('Disable Detection') }}" } }) }}
           alias: Send Standard Notification
 
 mode: single
@@ -466,26 +492,32 @@ action: # Main automation actions
           - condition: trigger
             id: BAMBU_LAB_DEBUG_TRIGGER
           - condition: template # Ensure debug mode is actually enabled
-            value_template: !input debug_mode_enabled # Make sure this is ON in the automation's UI
+            value_template: !input debug_mode_enabled
+          - condition: template # Respect detection disable timeout also in debug mode
+            value_template: "{{ not (now() < (states(DETECTION_DISABLE_UNTIL_HELPER_VAR) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local)) }}"
         sequence:
           - service: system_log.write # Log that debug trigger fired
             data:
               message: "Bambu Lab Spaghetti Detection: DEBUG MODE - Simulated detection triggered."
               level: warning # Test: Changed to warning to ensure visibility
             alias: Log Debug Trigger Activation
-          - service: camera.snapshot
-            target:
-              entity_id: !input printer_camera
-            data:
-              filename: "www/snapshots/bambu_lab_spaghetti_snapshot.jpg" # Use the same snapshot name
-            alias: Take Snapshot for DEBUG Notification
-          - service: system_log.write # Log after attempting snapshot
-            data:
-              message: "DEBUG: Attempted snapshot for camera '{!input printer_camera}' to 'www/snapshots/bambu_lab_spaghetti_snapshot.jpg'. Verify file existence and HA Host URL '{!input home_assistant_host}'."
-              level: warning # Use warning for visibility
-            alias: Log DEBUG Snapshot Attempt
-          - delay: "00:00:02" # Increased delay to ensure snapshot is written
-            alias: Wait for snapshot to write (DEBUG)
+          - if: # Only take snapshot if enabled
+              - condition: template
+                value_template: "{{ INCLUDE_SNAPSHOT_VAR }}"
+            then:
+              - service: camera.snapshot
+                target:
+                  entity_id: !input printer_camera
+                data:
+                  filename: "www/snapshots/bambu_lab_spaghetti_snapshot.jpg" # Use the same snapshot name
+                alias: Take Snapshot for DEBUG Notification
+              - service: system_log.write # Log after attempting snapshot
+                data:
+                  message: "DEBUG: Attempted snapshot for camera '{!input printer_camera}' to 'www/snapshots/bambu_lab_spaghetti_snapshot.jpg'. Verify file existence and HA Host URL '{!input home_assistant_host}'."
+                  level: warning # Use warning for visibility
+                alias: Log DEBUG Snapshot Attempt
+              - delay: "00:00:02" # Increased delay to ensure snapshot is written
+                alias: Wait for snapshot to write (DEBUG)
           - variables:
               # Sequence-specific variables
               raw_debug_confidence_value: !input debug_simulated_confidence
@@ -559,13 +591,19 @@ action: # Main automation actions
                     {% if _remaining_time_info_content | default('') | trim != "" -%}
                     {{ _remaining_time_info_content | default('') }}
                     {% endif %}
+                    {% if INCLUDE_SNAPSHOT_VAR -%}
                     Snapshot URL: {{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}
+                    {%- endif %}
                 alias: "Create DEBUG Persistent Notification"
           # Update last notify time to respect cooldown for debug notifications
           - service: datetime.set_value
             data: { datetime: "{{ now() }}" }
             target: { entity_id: datetime.bambu_lab_p1_spaghetti_detection_last_notify_time }
             alias: Update Last Notify Time (DEBUG)
+          - service: number.set_value # Reset normalized_p after debug run
+            target: { entity_id: number.bambu_lab_p1_spaghetti_detection_normalized_p }
+            data: { value: 0 }
+            alias: Reset Normalized P after DEBUG
         alias: "Execute Debug Mode Simulated Detection"
 
       # Handle print start: Reset metrics and optionally turn on light.
@@ -587,17 +625,17 @@ action: # Main automation actions
                 - number.bambu_lab_p1_spaghetti_detection_p_sum
           - if: # Turn on printer light if configured and currently off.
             - condition: and
-              conditions:
-              - condition: state
-                entity_id: !input printer_chamber_light
-                state: 'off'
-              - condition: template
-                value_template: !input auto_turn_on_light
+              conditions: # Ensure light entity is provided
+                - condition: template
+                  value_template: "{{ states(PRINTER_CHAMBER_LIGHT_VAR) != 'unavailable' and states(PRINTER_CHAMBER_LIGHT_VAR) != 'unknown' and PRINTER_CHAMBER_LIGHT_VAR | string | trim != '' }}"
+                - condition: state
+                  entity_id: !input printer_chamber_light # This will be PRINTER_CHAMBER_LIGHT_VAR in practice
+                  state: 'off'
+                - condition: template
+                  value_template: !input auto_turn_on_light
             then:
               - service: light.turn_on
-                target:
-                  entity_id:
-                    - !input printer_chamber_light
+                target: { entity_id: !input printer_chamber_light }
       # Handle actions triggered from notifications (Pause, Resume, Stop printer).
       - conditions:
           - condition: trigger
@@ -668,17 +706,17 @@ action: # Main automation actions
               - stop: ""
           - if: # Turn on printer light if configured and currently off.
             - condition: and
-              conditions:
-              - condition: state
-                entity_id: !input printer_chamber_light
-                state: 'off'
-              - condition: template
-                value_template: !input auto_turn_on_light
+              conditions: # Ensure light entity is provided
+                - condition: template
+                  value_template: "{{ states(PRINTER_CHAMBER_LIGHT_VAR) != 'unavailable' and states(PRINTER_CHAMBER_LIGHT_VAR) != 'unknown' and PRINTER_CHAMBER_LIGHT_VAR | string | trim != '' }}"
+                - condition: state
+                  entity_id: !input printer_chamber_light # This will be PRINTER_CHAMBER_LIGHT_VAR in practice
+                  state: 'off'
+                - condition: template
+                  value_template: !input auto_turn_on_light
             then:
               - service: light.turn_on
-                target:
-                  entity_id:
-                    - !input printer_chamber_light
+                target: { entity_id: !input printer_chamber_light }
 
           # Sanity check: User-defined failure threshold must be below emergency threshold.
           - if:
@@ -855,7 +893,7 @@ action: # Main automation actions
           - if:
               - condition: template
                 value_template: >-
-                  {{ (now() - (states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local)) < timedelta(minutes=1) }}
+                  {{ (now() - (states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local)) < timedelta(seconds=NOTIFICATION_COOLDOWN_SECONDS_VAR | int(60)) }}
             then:
               - stop: ""
             alias: "if now() - last_notify_time < 1min"
@@ -879,19 +917,24 @@ action: # Main automation actions
                   - condition: template
                     value_template: "{{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) >= (EMERGENCY_ACTION_THRESHOLD_VAR | int(0)) }}"
                 sequence:
-                  - service: camera.snapshot
-                    target:
-                      entity_id: !input printer_camera
-                    data:
-                      filename: "www/snapshots/bambu_lab_spaghetti_snapshot.jpg"
-                    alias: Take Snapshot for Emergency Notification
-                  - service: system_log.write # Log after attempting snapshot
-                    data:
-                      message: "EMERGENCY: Attempted snapshot for camera '{!input printer_camera}' to 'www/snapshots/bambu_lab_spaghetti_snapshot.jpg'. Verify file existence and HA Host URL '{!input home_assistant_host}'."
-                      level: warning # Use warning for visibility
-                    alias: Log EMERGENCY Snapshot Attempt
-                  - delay: "00:00:02" # Brief delay to ensure snapshot is written
-                    alias: Wait for snapshot to write
+                  - if: # Only take snapshot if enabled
+                      - condition: template
+                        value_template: "{{ INCLUDE_SNAPSHOT_VAR }}"
+                    then:
+                      - service: camera.snapshot
+                        target:
+                          entity_id: !input printer_camera
+                        data:
+                          filename: "www/snapshots/bambu_lab_spaghetti_snapshot.jpg"
+                        alias: Take Snapshot for Emergency Notification
+                      - service: system_log.write # Log after attempting snapshot
+                        data:
+                          message: "EMERGENCY: Attempted snapshot for camera '{!input printer_camera}' to 'www/snapshots/bambu_lab_spaghetti_snapshot.jpg'. Verify file existence and HA Host URL '{!input home_assistant_host}'."
+                          level: warning # Use warning for visibility
+                        alias: Log EMERGENCY Snapshot Attempt
+                      - delay: "00:00:02" # Brief delay to ensure snapshot is written
+                        alias: Wait for snapshot to write
+
                   - variables:
                       # Sequence-specific variables
                       notification_title_var: "Bambu Lab - EMERGENCY: Spaghetti Detected"
@@ -949,7 +992,9 @@ action: # Main automation actions
                             {% if _remaining_time_info_content | default('') | trim != "" -%}
                             {{ _remaining_time_info_content | default('') }}
                             {% endif %}
+                            {% if INCLUDE_SNAPSHOT_VAR -%}
                             Snapshot URL: {{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}
+                            {%- endif %}
                         alias: "Create EMERGENCY Persistent Notification"
                   - service: number.set_value # Reset all relevant detection metrics.
                     data: { value: 0 }
@@ -967,22 +1012,26 @@ action: # Main automation actions
                     value_template: "{{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) >= (FAILURE_PERCENTAGE_THRESHOLD_VAR | int(0)) }}"
                   - condition: template # User Timeout NOT active
                     value_template: "{{ not (now() < (states(DETECTION_DISABLE_UNTIL_HELPER_VAR) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local)) }}"
-                  - condition: template # 1-minute notification cooldown NOT active
-                    value_template: "{{ not ((now() - (states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local) < timedelta(minutes=1))) }}"
+                  - condition: template # Configurable notification cooldown NOT active
+                    value_template: "{{ not ((now() - (states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local) < timedelta(seconds=NOTIFICATION_COOLDOWN_SECONDS_VAR | int(60)))) }}"
                 sequence:
-                  - service: camera.snapshot
-                    target:
-                      entity_id: !input printer_camera
-                    data:
-                      filename: "www/snapshots/bambu_lab_spaghetti_snapshot.jpg"
-                    alias: Take Snapshot for Main Failure Notification
-                  - service: system_log.write # Log after attempting snapshot
-                    data:
-                      message: "MAIN FAILURE: Attempted snapshot for camera '{!input printer_camera}' to 'www/snapshots/bambu_lab_spaghetti_snapshot.jpg'. Verify file existence and HA Host URL '{!input home_assistant_host}'."
-                      level: warning # Use warning for visibility
-                    alias: Log MAIN FAILURE Snapshot Attempt
-                  - delay: "00:00:02" # Brief delay to ensure snapshot is written
-                    alias: Wait for snapshot to write
+                  - if: # Only take snapshot if enabled
+                      - condition: template
+                        value_template: "{{ INCLUDE_SNAPSHOT_VAR }}"
+                    then:
+                      - service: camera.snapshot
+                        target:
+                          entity_id: !input printer_camera
+                        data:
+                          filename: "www/snapshots/bambu_lab_spaghetti_snapshot.jpg"
+                        alias: Take Snapshot for Main Failure Notification
+                      - service: system_log.write # Log after attempting snapshot
+                        data:
+                          message: "MAIN FAILURE: Attempted snapshot for camera '{!input printer_camera}' to 'www/snapshots/bambu_lab_spaghetti_snapshot.jpg'. Verify file existence and HA Host URL '{!input home_assistant_host}'."
+                          level: warning # Use warning for visibility
+                        alias: Log MAIN FAILURE Snapshot Attempt
+                      - delay: "00:00:02" # Brief delay to ensure snapshot is written
+                        alias: Wait for snapshot to write
                   - variables:
                       # Sequence-specific variables
                       notification_title_var: "Bambu Lab - Spaghetti Detected"
@@ -1040,7 +1089,9 @@ action: # Main automation actions
                             {% if _remaining_time_info_content | default('') | trim != "" -%}
                             {{ _remaining_time_info_content | default('') }}
                             {% endif %}
+                            {% if INCLUDE_SNAPSHOT_VAR -%}
                             Snapshot URL: {{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}
+                            {%- endif %}
                         alias: "Create MAIN Persistent Notification"
                   - service: number.set_value # Reset all relevant detection metrics.
                     data: { value: 0 }
@@ -1063,22 +1114,26 @@ action: # Main automation actions
                     above: number.bambu_lab_p1_spaghetti_detection_thresh_warning
                   - condition: template # User Timeout NOT active
                     value_template: "{{ not (now() < (states(DETECTION_DISABLE_UNTIL_HELPER_VAR) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local)) }}"
-                  - condition: template # 1-minute notification cooldown NOT active
-                    value_template: "{{ not ((now() - (states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local) < timedelta(minutes=1))) }}"
+                  - condition: template # Configurable notification cooldown NOT active
+                    value_template: "{{ not ((now() - (states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local) < timedelta(seconds=NOTIFICATION_COOLDOWN_SECONDS_VAR | int(60)))) }}"
                 sequence:
-                  - service: camera.snapshot
-                    target:
-                      entity_id: !input printer_camera
-                    data:
-                      filename: "www/snapshots/bambu_lab_spaghetti_snapshot.jpg"
-                    alias: Take Snapshot for Warning Notification
-                  - service: system_log.write # Log after attempting snapshot
-                    data:
-                      message: "WARNING: Attempted snapshot for camera '{!input printer_camera}' to 'www/snapshots/bambu_lab_spaghetti_snapshot.jpg'. Verify file existence and HA Host URL '{!input home_assistant_host}'."
-                      level: warning # Use warning for visibility
-                    alias: Log WARNING Snapshot Attempt
-                  - delay: "00:00:02" # Brief delay to ensure snapshot is written
-                    alias: Wait for snapshot to write
+                  - if: # Only take snapshot if enabled
+                      - condition: template
+                        value_template: "{{ INCLUDE_SNAPSHOT_VAR }}"
+                    then:
+                      - service: camera.snapshot
+                        target:
+                          entity_id: !input printer_camera
+                        data:
+                          filename: "www/snapshots/bambu_lab_spaghetti_snapshot.jpg"
+                        alias: Take Snapshot for Warning Notification
+                      - service: system_log.write # Log after attempting snapshot
+                        data:
+                          message: "WARNING: Attempted snapshot for camera '{!input printer_camera}' to 'www/snapshots/bambu_lab_spaghetti_snapshot.jpg'. Verify file existence and HA Host URL '{!input home_assistant_host}'."
+                          level: warning # Use warning for visibility
+                        alias: Log WARNING Snapshot Attempt
+                      - delay: "00:00:02" # Brief delay to ensure snapshot is written
+                        alias: Wait for snapshot to write
                   - variables:
                       # Sequence-specific variables
                       notification_title_var: "Bambu Lab - Potential Issue (Warning)"
@@ -1134,7 +1189,9 @@ action: # Main automation actions
                             {% if _remaining_time_info_content | default('') | trim != "" -%}
                             {{ _remaining_time_info_content | default('') }}
                             {% endif %}
+                            {% if INCLUDE_SNAPSHOT_VAR -%}
                             Snapshot URL: {{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}
+                            {%- endif %}
                         alias: "Create WARNING Persistent Notification"
                   # For warnings, only update last_notify_time to respect cooldown, do not reset all detection metrics.
                   - service: datetime.set_value
