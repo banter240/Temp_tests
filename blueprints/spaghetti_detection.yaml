@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.76
+  name: Bambu Lab - Spaghetti Detection v1.77
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -608,11 +608,12 @@ action: # Main automation actions
                 value_template: !input enable_persistent_notifications
             then:
               - service: persistent_notification.create
-                data: >
+                data: >-
+                  {% set rendered_message = _persistent_notification_message_template_str | template %}
                   {{ {
                     "notification_id": "bambu_spaghetti_alert_debug",
                     "title": notification_title_var,
-                    "message": (_persistent_notification_message_template_str | template)
+                    "message": rendered_message
                   } }}
                 alias: "Create DEBUG Persistent Notification"
           # Update last notify time to respect cooldown for debug notifications
@@ -974,11 +975,12 @@ action: # Main automation actions
                         value_template: !input enable_persistent_notifications
                     then:
                       - service: persistent_notification.create
-                        data: >
+                        data: >-
+                          {% set rendered_message = _persistent_notification_message_template_str | template %}
                           {{ {
                             "notification_id": "bambu_spaghetti_alert_emergency",
                             "title": notification_title_var,
-                            "message": (_persistent_notification_message_template_str | template)
+                            "message": rendered_message
                           } }}
                         alias: "Create EMERGENCY Persistent Notification"
                   - service: number.set_value # Reset all relevant detection metrics.
@@ -1060,11 +1062,12 @@ action: # Main automation actions
                         value_template: !input enable_persistent_notifications
                     then:
                       - service: persistent_notification.create
-                        data: >
+                        data: >-
+                          {% set rendered_message = _persistent_notification_message_template_str | template %}
                           {{ {
                             "notification_id": "bambu_spaghetti_alert_main",
                             "title": notification_title_var,
-                            "message": (_persistent_notification_message_template_str | template)
+                            "message": rendered_message
                           } }}
                         alias: "Create MAIN Persistent Notification"
                   - service: number.set_value # Reset all relevant detection metrics.
@@ -1149,11 +1152,12 @@ action: # Main automation actions
                         value_template: !input enable_persistent_notifications
                     then:
                       - service: persistent_notification.create
-                        data: >
+                        data: >-
+                          {% set rendered_message = _persistent_notification_message_template_str | template %}
                           {{ {
                             "notification_id": "bambu_spaghetti_alert_warning",
                             "title": notification_title_var,
-                            "message": (_persistent_notification_message_template_str | template)
+                            "message": rendered_message
                           } }}
                         alias: "Create WARNING Persistent Notification"
                   # For warnings, only update last_notify_time to respect cooldown, do not reset all detection metrics.
