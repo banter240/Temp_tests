@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.78
+  name: Bambu Lab - Spaghetti Detection v1.80
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -156,14 +156,14 @@ blueprint:
         The notification service for mobile devices (eg. notify.mobile_app_<your_device_id_here>).
         You can provide both a notify group or a single notify device here.
       default: notify.notify
-      selector: # Allows free text for service name
+      selector:
         text:
     enable_persistent_notifications:
       name: Enable Persistent Notifications
       description: "If enabled, creates a persistent notification in Home Assistant in addition to (or instead of) mobile push notifications."
       default: true
-      selector: { boolean: } # Simplified selector
-    auto_turn_on_light: # Controls if chamber light (if defined) is auto-activated
+      selector: { boolean: }
+    auto_turn_on_light:
       name: Automatically Turn On Printer Lights
       description: Turns on printer lights before spaghetti detection operation (if chamber light is selected).
       default: true
@@ -223,7 +223,7 @@ blueprint:
     printer_chamber_light:
       name: (Optional) Printer Chamber Light
       description: Bambu Lab printer chamber light. If selected, 'Automatically Turn On Printer Lights' can be used.
-      default: "" # Make it truly optional
+      default: ""
       selector:
         entity:
           filter:
@@ -270,7 +270,7 @@ blueprint:
       name: Notification Cooldown (Seconds)
       description: "Minimum time in seconds between notifications for non-emergency events (Default: 60 seconds)."
       default: 60
-      selector:
+      selector: # Number selector for cooldown time
         number:
           min: 10 # Minimum 10 seconds
           max: 3600 # Maximum 1 hour
@@ -278,7 +278,7 @@ blueprint:
           unit_of_measurement: "s"
 
     warn_below_failure_threshold:
-      name: Enable Warning Below Failure Threshold
+      name: Enable Warning Below Failure Threshold # Option to send warnings for lower confidence
       description: >
         If enabled, send a warning notification if confidence is above the dynamic
         warning threshold but below the user-defined failure threshold.
@@ -307,7 +307,7 @@ blueprint:
           step: 1 # Step in minutes
           unit_of_measurement: minutes
 
-    # --- Debug Mode Settings ---
+    # --- Debug Mode ---
     # Debug Mode
     debug_mode_enabled:
       name: Enable Debug Mode
@@ -349,7 +349,7 @@ variables:
   TIMEOUT_MINUTES_VAR: !input timeout_minutes
   DETECTION_DISABLE_UNTIL_HELPER_VAR: !input detection_disable_until_helper
   INCLUDE_SNAPSHOT_VAR: !input include_snapshot_in_notification
-  PRINTER_CHAMBER_LIGHT_VAR: !input printer_chamber_light # Store for easier access in templates/anchors
+  PRINTER_CHAMBER_LIGHT_VAR: !input printer_chamber_light
   NOTIFICATION_COOLDOWN_SECONDS_VAR: !input notification_cooldown_seconds
 
 
@@ -511,7 +511,7 @@ trigger:
 
 condition: [ ]
 action: # Main automation actions
-  # This log should appear every time any trigger fires and the automation action block is entered.
+  # Log automation start for easier debugging of trigger issues
   - service: system_log.write # For general automation flow debugging
     data:
       message: "Bambu Lab Spaghetti Detection: Automation action initiated by trigger ID '{{ trigger.id | default('unknown') }}'."
@@ -529,7 +529,7 @@ action: # Main automation actions
         sequence:
           - service: system_log.write # Log that debug trigger fired
             data:
-              message: "DEBUG MODE: Simulated detection triggered."
+              message: "DEBUG MODE: Simulated detection triggered." # Clear log message for debug
               level: warning # Test: Changed to warning to ensure visibility
             alias: Log Debug Trigger Activation
           - if: # Only take snapshot if enabled
@@ -580,7 +580,8 @@ action: # Main automation actions
                 {% set hours = (minutes % (24 * 60)) // 60 -%}
                 {% set remaining_minutes = minutes % 60 -%}
                 Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m
-                {%- else -%}{%- endif -%}
+                {%- else -%}{%- endif -%}, # Comma is important here for YAML structure
+              _rendered_persistent_message: "{{ _persistent_notification_message_template_str | template }}"
           # Simulate a high confidence value by setting the normalized_p number helper
           - service: number.set_value
             target:
@@ -608,14 +609,10 @@ action: # Main automation actions
                 value_template: !input enable_persistent_notifications
             then:
               - service: persistent_notification.create
-                variables: # Render the message here where 'template' filter is available
-                  _rendered_persistent_message: "{{ _persistent_notification_message_template_str | template }}"
-                data: > # Pass the pre-rendered message to the data block
-                  {{ {
-                    "notification_id": "bambu_spaghetti_alert_debug",
-                    "title": notification_title_var,
-                    "message": _rendered_persistent_message
-                  } }}
+                data:
+                  notification_id: "bambu_spaghetti_alert_debug"
+                  title: "{{ notification_title_var }}"
+                  message: "{{ _rendered_persistent_message }}"
                 alias: "Create DEBUG Persistent Notification"
           # Update last notify time to respect cooldown for debug notifications
           - service: datetime.set_value
@@ -713,7 +710,7 @@ action: # Main automation actions
                 value_template: >-
                   {{ now().second % (DETECTION_FREQUENCY_VAR | replace("/", "") | int(0)) > 0 }}
             then:
-              - stop: "Skipping due to detection frequency modulo check." # More descriptive stop
+              - stop: "Skipping due to detection frequency modulo check."
           - sequence: *turn_on_chamber_light_if_needed # Use anchor
 
           # Sanity check: User-defined failure threshold must be below emergency threshold.
@@ -963,7 +960,8 @@ action: # Main automation actions
                         {% set hours = (minutes % (24 * 60)) // 60 -%}
                         {% set remaining_minutes = minutes % 60 -%}
                         Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m
-                        {%- else -%}{%- endif -%}
+                        {%- else -%}{%- endif -%}, # Comma is important here
+                      _rendered_persistent_message: "{{ _persistent_notification_message_template_str | template }}"
                   - choose: # Use the anchored choose content
                       *action_choose_anchor # Printer action (pause/stop)
                     alias: "Execute Anchored Action Choose (Emergency)"
@@ -976,14 +974,10 @@ action: # Main automation actions
                         value_template: !input enable_persistent_notifications
                     then:
                       - service: persistent_notification.create
-                        variables:
-                          _rendered_persistent_message: "{{ _persistent_notification_message_template_str | template }}"
-                        data: >
-                          {{ {
-                            "notification_id": "bambu_spaghetti_alert_emergency",
-                            "title": notification_title_var,
-                            "message": _rendered_persistent_message
-                          } }}
+                        data:
+                          notification_id: "bambu_spaghetti_alert_emergency"
+                          title: "{{ notification_title_var }}"
+                          message: "{{ _rendered_persistent_message }}"
                         alias: "Create EMERGENCY Persistent Notification"
                   - service: number.set_value # Reset all relevant detection metrics.
                     data: { value: 0 }
@@ -1051,7 +1045,8 @@ action: # Main automation actions
                         {% set hours = (minutes % (24 * 60)) // 60 -%}
                         {% set remaining_minutes = minutes % 60 -%}
                         Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m
-                        {%- else -%}{%- endif -%}
+                        {%- else -%}{%- endif -%}, # Comma is important here
+                      _rendered_persistent_message: "{{ _persistent_notification_message_template_str | template }}"
                   - choose: # Use the anchored choose content
                       *action_choose_anchor # Printer action (pause/stop)
                     alias: "Execute Anchored Action Choose (Main Failure)"
@@ -1064,14 +1059,10 @@ action: # Main automation actions
                         value_template: !input enable_persistent_notifications
                     then:
                       - service: persistent_notification.create
-                        variables:
-                          _rendered_persistent_message: "{{ _persistent_notification_message_template_str | template }}"
-                        data: >
-                          {{ {
-                            "notification_id": "bambu_spaghetti_alert_main",
-                            "title": notification_title_var,
-                            "message": _rendered_persistent_message
-                          } }}
+                        data:
+                          notification_id: "bambu_spaghetti_alert_main"
+                          title: "{{ notification_title_var }}"
+                          message: "{{ _rendered_persistent_message }}"
                         alias: "Create MAIN Persistent Notification"
                   - service: number.set_value # Reset all relevant detection metrics.
                     data: { value: 0 }
@@ -1144,7 +1135,8 @@ action: # Main automation actions
                         {% set hours = (minutes % (24 * 60)) // 60 -%}
                         {% set remaining_minutes = minutes % 60 -%}
                         Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m
-                        {%- else -%}{%- endif -%}
+                        {%- else -%}{%- endif -%}, # Comma is important here
+                      _rendered_persistent_message: "{{ _persistent_notification_message_template_str | template }}"
                   # Only send notification, no printer action for this warning case
                   - choose: # Use the anchored choose content
                       *notification_choose_anchor # Notification
@@ -1155,14 +1147,10 @@ action: # Main automation actions
                         value_template: !input enable_persistent_notifications
                     then:
                       - service: persistent_notification.create
-                        variables:
-                          _rendered_persistent_message: "{{ _persistent_notification_message_template_str | template }}"
-                        data: >
-                          {{ {
-                            "notification_id": "bambu_spaghetti_alert_warning",
-                            "title": notification_title_var,
-                            "message": _rendered_persistent_message
-                          } }}
+                        data:
+                          notification_id: "bambu_spaghetti_alert_warning"
+                          title: "{{ notification_title_var }}"
+                          message: "{{ _rendered_persistent_message }}"
                         alias: "Create WARNING Persistent Notification"
                   # For warnings, only update last_notify_time to respect cooldown, do not reset all detection metrics.
                   - service: datetime.set_value
