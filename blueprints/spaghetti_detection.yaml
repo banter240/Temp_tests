@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.69
+  name: Bambu Lab - Spaghetti Detection v1.70
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -395,18 +395,21 @@ variables:
               {% endif -%}
               {# Optional: {{ "\n" }}Debug Img URL: {{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }} #}
             data: >
-              {% set ns = namespace(image_data={}) %}
-              {% if INCLUDE_SNAPSHOT_VAR %} {% set ns.image_data = ns.image_data | extend({'image': _effective_notification_host | default('') ~ '/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v=' ~ now().timestamp() | int}) %} {% endif %}
-              {{ ns.image_data | extend({
-              "ttl": 0,
-              "priority": "high",
-              "channel": "alarm_stream",
-              "push": { "sound": { "name": "default", "critical": 1, "volume": 0.75 } },
-              "actions": [
-                { "action": "BAMBU_LAB_RESUME_PRINTING", "title": "Resume Printing" },
-                { "action": "BAMBU_LAB_STOP_PRINTING", "title": "Stop Printing" },
-                { "action": "BAMBU_LAB_DISABLE_DETECTION", "title": "{{ disable_action_title_var | default('Disable Detection') }}" }
-              ] }) }}
+              {% set base_data = {
+                "ttl": 0,
+                "priority": "high",
+                "channel": "alarm_stream",
+                "push": { "sound": { "name": "default", "critical": 1, "volume": 0.75 } },
+                "actions": [
+                  { "action": "BAMBU_LAB_RESUME_PRINTING", "title": "Resume Printing" },
+                  { "action": "BAMBU_LAB_STOP_PRINTING", "title": "Stop Printing" },
+                  { "action": "BAMBU_LAB_DISABLE_DETECTION", "title": "{{ disable_action_title_var | default('Disable Detection') }}" }
+                ]
+              } %}
+              {% if INCLUDE_SNAPSHOT_VAR %}
+                {% set base_data = base_data | merge({'image': _effective_notification_host | default('') ~ '/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v=' ~ now().timestamp() | int}) %}
+              {% endif %}
+              {{ base_data }}
           alias: Send Critical Notification
     - conditions:
         - condition: template
@@ -428,14 +431,17 @@ variables:
               {% endif -%}
               {# Optional: {{ "\n" }}Debug Img URL: {{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }} #}
             data: >
-              {% set ns = namespace(image_data={}) %}
-              {% if INCLUDE_SNAPSHOT_VAR %} {% set ns.image_data = ns.image_data | extend({'image': _effective_notification_host | default('') ~ '/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v=' ~ now().timestamp() | int}) %} {% endif %}
-              {{ ns.image_data | extend({
-              "actions": [
-                { "action": "BAMBU_LAB_RESUME_PRINTING", "title": "Resume Printing" },
-                { "action": "BAMBU_LAB_STOP_PRINTING", "title": "Stop Printing" },
-                { "action": "BAMBU_LAB_DISABLE_DETECTION", "title": "{{ disable_action_title_var | default('Disable Detection') }}" }
-              ] }) }}
+              {% set base_data = {
+                "actions": [
+                  { "action": "BAMBU_LAB_RESUME_PRINTING", "title": "Resume Printing" },
+                  { "action": "BAMBU_LAB_STOP_PRINTING", "title": "Stop Printing" },
+                  { "action": "BAMBU_LAB_DISABLE_DETECTION", "title": "{{ disable_action_title_var | default('Disable Detection') }}" }
+                ]
+              } %}
+              {% if INCLUDE_SNAPSHOT_VAR %}
+                {% set base_data = base_data | merge({'image': _effective_notification_host | default('') ~ '/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v=' ~ now().timestamp() | int}) %}
+              {% endif %}
+              {{ base_data }}
           alias: Send Standard Notification
 
 mode: single
