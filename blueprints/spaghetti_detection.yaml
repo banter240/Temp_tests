@@ -1,8 +1,22 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.90
+  # --- Advanced Spaghetti Detection - Key Enhancements ---
+  # This blueprint significantly extends basic spaghetti detection with:
+  #
+  # - **Multi-Stage Alerting & Actions:**
+  #   - Configurable 'Emergency' threshold for immediate action, bypassing timeouts.
+  #   - Standard 'Failure' threshold for defined actions (Pause/Stop/Warn).
+  #   - Optional 'Warning-Only' mode for notifications below main failure, without printer action.
+  # - **Sophisticated Notification Control:**
+  #   - Critical/Standard/No Push options; HA Persistent Notifications.
+  #   - Snapshot inclusion, configurable cooldown, detailed print info (optional: file, progress, time, layer).
+  #   - Interactive Notification Actions: Resume, Stop, and a new 'Disable Detection' (timed).
+  # - **Detection Timeout Feature:** Temporarily pause detection & non-emergency alerts via notification.
+  # - **Algorithm Fine-Tuning (Expert):** Optional inputs to adjust EWMA period and key threshold calculation factors.
+  # - **Integrated Debug Mode:** Comprehensive testing of the notification pipeline with simulated confidence.
+  #
+  name: Bambu Lab - Advanced Spaghetti Detection v1.94
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
-
     **Based on the work from:** https://github.com/nberktumer/ha-bambu-lab-p1-spaghetti-detection
 
     **Important Setup for Timeout Feature:**
@@ -841,9 +855,11 @@ action:
 
               # Calculate Exponentially Weighted Moving Average (EWMA) for p_sum.
               - service: number.set_value
-                data:
+                data: >-
                   {% set ewma_N = EWMA_PERIOD_ADVANCED_VAR | int(12) if ADVANCED_TUNING_ENABLED_VAR else 12 %}
-                  value: "{{ (states('number.bambu_lab_p1_spaghetti_detection_p_sum') | float(0)) * (2 / (ewma_N + 1)) + (states('number.bambu_lab_p1_spaghetti_detection_ewm_mean') | float(0)) * (1 - (2 / (ewma_N + 1))) }}"
+                  {{ # This outer brace pair is crucial for HA to interpret the whole block as a template for the 'value'
+                    { "value": (states('number.bambu_lab_p1_spaghetti_detection_p_sum') | float(0)) * (2 / (ewma_N + 1)) + (states('number.bambu_lab_p1_spaghetti_detection_ewm_mean') | float(0)) * (1 - (2 / (ewma_N + 1))) }
+                  }}
                 target:
                   entity_id: number.bambu_lab_p1_spaghetti_detection_ewm_mean
 
@@ -879,9 +895,11 @@ action:
 
               # Calculate difference between short and long rolling means, scaled by a factor.
               - service: number.set_value
-                data:
+                data: >-
                   {% set r_mean_diff_factor = ROLLING_MEAN_DIFF_FACTOR_VAR if ADVANCED_TUNING_ENABLED_VAR else 3.8 %}
-                  value: "{{ ((states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_short') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_long') | float(0))) * r_mean_diff_factor }}"
+                  {{
+                    { "value": ((states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_short') | float(0)) - (states('number.bambu_lab_p1_spaghetti_detection_rolling_mean_long') | float(0))) * r_mean_diff_factor }
+                  }}
                 target:
                   entity_id: number.bambu_lab_p1_spaghetti_detection_rolling_mean_diff
 
@@ -896,9 +914,11 @@ action:
 
               # Calculate dynamic failure threshold based on warning threshold and a factor.
               - service: number.set_value
-                data:
+                data: >-
                   {% set fail_thresh_factor = FAILURE_THRESHOLD_FACTOR_VAR if ADVANCED_TUNING_ENABLED_VAR else 1.75 %}
-                  value: "{{ (states('number.bambu_lab_p1_spaghetti_detection_thresh_warning') | float(0)) * fail_thresh_factor }}"
+                  {{
+                    { "value": (states('number.bambu_lab_p1_spaghetti_detection_thresh_warning') | float(0)) * fail_thresh_factor }
+                  }}
                 target:
                   entity_id: number.bambu_lab_p1_spaghetti_detection_thresh_failure
 
