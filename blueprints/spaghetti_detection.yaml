@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.86
+  name: Bambu Lab - Spaghetti Detection v1.87
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -343,6 +343,7 @@ variables:
   TIMEOUT_MINUTES_VAR: !input timeout_minutes
   DETECTION_DISABLE_UNTIL_HELPER_VAR: !input detection_disable_until_helper
   INCLUDE_SNAPSHOT_VAR: !input include_snapshot_in_notification
+  PRINTER_CHAMBER_LIGHT_VAR: !input printer_chamber_light
   NOTIFICATION_COOLDOWN_SECONDS_VAR: !input notification_cooldown_seconds
 
 
@@ -441,7 +442,7 @@ variables:
       - condition: and
         conditions:
           - condition: template # Ensure light entity is provided by user
-            value_template: "{{ !input printer_chamber_light | string | trim == '' }}" # Check if input is not empty
+            value_template: "{{ PRINTER_CHAMBER_LIGHT_VAR | string | trim != '' }}"
           - condition: state
             entity_id: !input printer_chamber_light
             state: 'off'
