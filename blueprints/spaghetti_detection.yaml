@@ -14,7 +14,7 @@ blueprint:
   # - **Algorithm Fine-Tuning (Expert):** Optional inputs to adjust EWMA period and key threshold calculation factors.
   # - **Integrated Debug Mode:** Comprehensive testing of the notification pipeline with simulated confidence.
   #
-  name: Bambu Lab - Advanced Spaghetti Detection v1.94
+  name: Bambu Lab - Advanced Spaghetti Detection v1.95
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
     **Based on the work from:** https://github.com/nberktumer/ha-bambu-lab-p1-spaghetti-detection
@@ -856,8 +856,8 @@ action:
               # Calculate Exponentially Weighted Moving Average (EWMA) for p_sum.
               - service: number.set_value
                 data: >-
-                  {% set ewma_N = EWMA_PERIOD_ADVANCED_VAR | int(12) if ADVANCED_TUNING_ENABLED_VAR else 12 %}
-                  {{ # This outer brace pair is crucial for HA to interpret the whole block as a template for the 'value'
+                  {% set ewma_N = EWMA_PERIOD_ADVANCED_VAR | int(12) if ADVANCED_TUNING_ENABLED_VAR else 12 %}                  
+                  {{
                     { "value": (states('number.bambu_lab_p1_spaghetti_detection_p_sum') | float(0)) * (2 / (ewma_N + 1)) + (states('number.bambu_lab_p1_spaghetti_detection_ewm_mean') | float(0)) * (1 - (2 / (ewma_N + 1))) }
                   }}
                 target:
