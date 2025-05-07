@@ -1,5 +1,5 @@
 blueprint:
-  name: Bambu Lab - Spaghetti Detection v1.70
+  name: Bambu Lab - Spaghetti Detection v1.71
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -395,21 +395,20 @@ variables:
               {% endif -%}
               {# Optional: {{ "\n" }}Debug Img URL: {{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }} #}
             data: >
-              {% set base_data = {
-                "ttl": 0,
-                "priority": "high",
-                "channel": "alarm_stream",
-                "push": { "sound": { "name": "default", "critical": 1, "volume": 0.75 } },
-                "actions": [
-                  { "action": "BAMBU_LAB_RESUME_PRINTING", "title": "Resume Printing" },
-                  { "action": "BAMBU_LAB_STOP_PRINTING", "title": "Stop Printing" },
-                  { "action": "BAMBU_LAB_DISABLE_DETECTION", "title": "{{ disable_action_title_var | default('Disable Detection') }}" }
-                ]
-              } %}
+              {% set notification_data = {} %}
+              {% set _ = notification_data.update({'ttl': 0}) %}
+              {% set _ = notification_data.update({'priority': 'high'}) %}
+              {% set _ = notification_data.update({'channel': 'alarm_stream'}) %}
+              {% set _ = notification_data.update({'push': {'sound': {'name': 'default', 'critical': 1, 'volume': 0.75}}}) %}
+              {% set _ = notification_data.update({'actions': [
+                  { 'action': 'BAMBU_LAB_RESUME_PRINTING', 'title': 'Resume Printing' },
+                  { 'action': 'BAMBU_LAB_STOP_PRINTING', 'title': 'Stop Printing' },
+                  { 'action': 'BAMBU_LAB_DISABLE_DETECTION', 'title': disable_action_title_var | default('Disable Detection') }
+                ]}) %}
               {% if INCLUDE_SNAPSHOT_VAR %}
-                {% set base_data = base_data | merge({'image': _effective_notification_host | default('') ~ '/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v=' ~ now().timestamp() | int}) %}
+                {% set _ = notification_data.update({'image': _effective_notification_host | default('') ~ '/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v=' ~ (now().timestamp() | int)}) %}
               {% endif %}
-              {{ base_data }}
+              {{ notification_data }}
           alias: Send Critical Notification
     - conditions:
         - condition: template
@@ -431,17 +430,16 @@ variables:
               {% endif -%}
               {# Optional: {{ "\n" }}Debug Img URL: {{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }} #}
             data: >
-              {% set base_data = {
-                "actions": [
-                  { "action": "BAMBU_LAB_RESUME_PRINTING", "title": "Resume Printing" },
-                  { "action": "BAMBU_LAB_STOP_PRINTING", "title": "Stop Printing" },
-                  { "action": "BAMBU_LAB_DISABLE_DETECTION", "title": "{{ disable_action_title_var | default('Disable Detection') }}" }
-                ]
-              } %}
+              {% set notification_data = {} %}
+              {% set _ = notification_data.update({'actions': [
+                  { 'action': 'BAMBU_LAB_RESUME_PRINTING', 'title': 'Resume Printing' },
+                  { 'action': 'BAMBU_LAB_STOP_PRINTING', 'title': 'Stop Printing' },
+                  { 'action': 'BAMBU_LAB_DISABLE_DETECTION', 'title': disable_action_title_var | default('Disable Detection') }
+                ]}) %}
               {% if INCLUDE_SNAPSHOT_VAR %}
-                {% set base_data = base_data | merge({'image': _effective_notification_host | default('') ~ '/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v=' ~ now().timestamp() | int}) %}
+                {% set _ = notification_data.update({'image': _effective_notification_host | default('') ~ '/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v=' ~ (now().timestamp() | int)}) %}
               {% endif %}
-              {{ base_data }}
+              {{ notification_data }}
           alias: Send Standard Notification
 
 mode: single
