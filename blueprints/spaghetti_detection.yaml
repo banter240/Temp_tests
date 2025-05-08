@@ -16,7 +16,7 @@ blueprint:
   # - **Configurable Timeout Behavior:** Timeout feature can be toggled, emergency override can be optionally disabled. Notification button for timeout is shown only if feature is enabled and helper is configured.
   #
 
-  name: Bambu Lab - Advanced Spaghetti Detection v1.10.13
+  name: Bambu Lab - Advanced Spaghetti Detection v1.10.14
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -477,7 +477,7 @@ variables:
               {% if _progress_info_content | default('') | trim != "" -%}
               {{ _progress_info_content | default('') }}
               {% endif -%}
-              {% if _remaining_time_info_content | default('') | trim != "" -%} #
+              {% if _remaining_time_info_content | default('') | trim != "" -%}
               {{ _remaining_time_info_content | default('') }}
               {% endif -%}
               {% if _current_layer_info_content | default('') | trim != "" -%}
@@ -562,10 +562,11 @@ variables:
           target: { entity_id: !input printer_chamber_light }
           alias: "Auto-Turn On Chamber Light"
 
+  # This anchor prepares notification content and sends notifications (mobile & persistent).
+  # It expects variables like 'notification_title_var', '_confidence_to_display_percent',
+  # 'snapshot_log_prefix', 'persistent_notification_id_var', 'resolved_*', and '_*content'
+  # to be defined in the calling sequence's variables block BEFORE this anchor is called.
   _prepare_and_send_notification_anchor: &prepare_and_send_notification_anchor
-    # This anchor expects 'notification_title_var' and '_confidence_to_display_percent'
-    # to be set in the calling sequence's variables block.
-    # It also uses global blueprint inputs for sensor names and notification hosts.
     - if: # Only take snapshot if enabled.
       - condition: template
         value_template: "{{ INCLUDE_SNAPSHOT_VAR }}"
@@ -583,28 +584,6 @@ variables:
           # Alias will be set in the calling sequence
         - delay: "00:00:02" # Brief delay to allow file system to write the snapshot.
           # Alias will be set in the calling sequence
-    - variables:
-        # Resolve inputs to local variables for use in notification templates.
-        resolved_task_sensor_input: !input printer_task_name_sensor
-        resolved_progress_sensor_input: !input printer_print_progress_sensor
-        resolved_remaining_sensor_input: !input printer_remaining_time_sensor
-        resolved_timeout_minutes_input: !input timeout_minutes
-        resolved_current_layer_sensor_input: !input printer_current_layer_sensor
-        resolved_ext_notify_host_input: !input external_notification_host_url
-        resolved_ha_host_input: !input home_assistant_host
-        # Define common notification content variables.
-        _effective_notification_host: "{{ resolved_ext_notify_host_input if resolved_ext_notify_host_input | string | trim != '' else resolved_ha_host_input }}"
-        disable_action_title_var: "Disable {{ resolved_timeout_minutes_input }} min"
-        _file_info_content: >-
-          {%- if resolved_task_sensor_input != "" and states(resolved_task_sensor_input) != "unknown" and states(resolved_task_sensor_input) | trim != "" -%}File: {{ states(resolved_task_sensor_input) }}{%- else -%}{%- endif -%}
-        _progress_info_content: >-
-          {%- if resolved_progress_sensor_input != "" and states(resolved_progress_sensor_input) != "unknown" and states(resolved_progress_sensor_input) | trim != "" -%}Progress: {{ states(resolved_progress_sensor_input) }}%{%- else -%}{%- endif -%}
-        _remaining_time_info_content: >-
-          {%- if resolved_remaining_sensor_input != "" and states(resolved_remaining_sensor_input) != "unknown" and states(resolved_remaining_sensor_input) | trim != "" -%}{% set minutes = states(resolved_remaining_sensor_input) | int(0) %}{% set days = (minutes // (24 * 60)) %}{% set hours = (minutes % (24 * 60)) // 60 %}{% set remaining_minutes = minutes % 60 %}Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m{%- else -%}{%- endif -%}
-        _current_layer_info_content: >-
-          {%- if resolved_current_layer_sensor_input != "" and states(resolved_current_layer_sensor_input) != "unknown" and states(resolved_current_layer_sensor_input) | trim != "" -%}Layer: {{ states(resolved_current_layer_sensor_input) }}{%- else -%}{%- endif -%}
-        _rendered_persistent_message: >-
-          Confidence: {{ _confidence_to_display_percent }}%{% if _file_info_content | default('') | trim != "" -%}{{ "\n" }}{{ _file_info_content | default('') }}{% endif %}{% if _progress_info_content | default('') | trim != "" -%}{{ "\n" }}{{ _progress_info_content | default('') }}{% endif %}{% if _remaining_time_info_content | default('') | trim != "" -%}{{ "\n" }}{{ _remaining_time_info_content | default('') }}{% endif %}{% if _current_layer_info_content | default('') | trim != "" -%}{{ "\n" }}{{ _current_layer_info_content | default('') }}{% endif %}{% if INCLUDE_SNAPSHOT_VAR -%}{{ "\n" }}Snapshot URL: {{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}{%- endif %}
     - choose: # Send mobile notification.
         *notification_choose_anchor # Uses notification_title_var and _confidence_to_display_percent from calling scope
       # Alias will be set in the calling sequence
@@ -616,7 +595,7 @@ variables:
           data:
             notification_id: "{{ persistent_notification_id_var | default('bambu_spaghetti_alert_generic') }}"
             title: "{{ notification_title_var }}" # From calling scope
-            message: "{{ _rendered_persistent_message }}" # From this anchor's variables
+            message: "{{ _rendered_persistent_message }}" # From calling scope's variables
           # Alias will be set in the calling sequence
 
 mode: single
@@ -670,7 +649,7 @@ action:
       level: info
     alias: Log Automation Action Start
   # The extensive "RUN-TIME DEBUG VALUES" log block has been removed.
-  - choose:
+  - choose: # Main action logic based on trigger and conditions
       # --- Handle Debug Trigger ---
       # This has the highest priority among periodic triggers to allow testing.
       - conditions:
@@ -702,6 +681,27 @@ action:
               notification_title_var: "DEBUG: Simulated Spaghetti Detected"
               snapshot_log_prefix: "DEBUG" # For the snapshot log inside the anchor
               persistent_notification_id_var: "bambu_spaghetti_alert_debug"
+              # Resolve inputs to local variables for use in notification templates (moved from anchor)
+              resolved_task_sensor_input: !input printer_task_name_sensor
+              resolved_progress_sensor_input: !input printer_print_progress_sensor
+              resolved_remaining_sensor_input: !input printer_remaining_time_sensor
+              resolved_timeout_minutes_input: !input timeout_minutes
+              resolved_current_layer_sensor_input: !input printer_current_layer_sensor
+              resolved_ext_notify_host_input: !input external_notification_host_url
+              resolved_ha_host_input: !input home_assistant_host
+              # Define common notification content variables (moved from anchor)
+              _effective_notification_host: "{{ resolved_ext_notify_host_input if resolved_ext_notify_host_input | string | trim != '' else resolved_ha_host_input }}"
+              disable_action_title_var: "Disable {{ resolved_timeout_minutes_input }} min"
+              _file_info_content: >-
+                {%- if resolved_task_sensor_input != "" and states(resolved_task_sensor_input) != "unknown" and states(resolved_task_sensor_input) | trim != "" -%}File: {{ states(resolved_task_sensor_input) }}{%- else -%}{%- endif -%}
+              _progress_info_content: >-
+                {%- if resolved_progress_sensor_input != "" and states(resolved_progress_sensor_input) != "unknown" and states(resolved_progress_sensor_input) | trim != "" -%}Progress: {{ states(resolved_progress_sensor_input) }}%{%- else -%}{%- endif -%}
+              _remaining_time_info_content: >-
+                {%- if resolved_remaining_sensor_input != "" and states(resolved_remaining_sensor_input) != "unknown" and states(resolved_remaining_sensor_input) | trim != "" -%}{% set minutes = states(resolved_remaining_sensor_input) | int(0) %}{% set days = (minutes // (24 * 60)) %}{% set hours = (minutes % (24 * 60)) // 60 %}{% set remaining_minutes = minutes % 60 %}Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m{%- else -%}{%- endif -%}
+              _current_layer_info_content: >-
+                {%- if resolved_current_layer_sensor_input != "" and states(resolved_current_layer_sensor_input) != "unknown" and states(resolved_current_layer_sensor_input) | trim != "" -%}Layer: {{ states(resolved_current_layer_sensor_input) }}{%- else -%}{%- endif -%}
+              _rendered_persistent_message: >-
+                Confidence: {{ _confidence_to_display_percent }}%{% if _file_info_content | default('') | trim != "" -%}{{ "\n" }}{{ _file_info_content | default('') }}{% endif %}{% if _progress_info_content | default('') | trim != "" -%}{{ "\n" }}{{ _progress_info_content | default('') }}{% endif %}{% if _remaining_time_info_content | default('') | trim != "" -%}{{ "\n" }}{{ _remaining_time_info_content | default('') }}{% endif %}{% if _current_layer_info_content | default('') | trim != "" -%}{{ "\n" }}{{ _current_layer_info_content | default('') }}{% endif %}{% if INCLUDE_SNAPSHOT_VAR -%}{{ "\n" }}Snapshot URL: {{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}{%- endif %}
           - sequence: *prepare_and_send_notification_anchor
             alias: "Prepare and Send DEBUG Notification"
           # NO LONGER SETTING number.bambu_lab_p1_spaghetti_detection_normalized_p in DEBUG mode.
@@ -813,17 +813,15 @@ action:
       - conditions:
           - condition: trigger
             id: BAMBU_LAB_DETECTION_TRIGGER
+          - condition: template # Only run if debug mode is NOT enabled.
+            value_template: "{{ not DEBUG_MODE_ENABLED_BP_VAR }}" # Use the explicit variable
         sequence:
-          # If debug mode is enabled, stop the main detection loop to give debug priority and avoid conflicts.
-          - if:
-              - condition: template
-                value_template: "{{ DEBUG_MODE_ENABLED_BP_VAR }}" # Use the explicit variable
-            then:
-              - service: system_log.write
-                data:
-                  message: "Bambu Lab Spaghetti Detection: Main detection loop paused because Debug Mode is active."
-                  level: info
-              - stop: "Main detection loop paused due to active Debug Mode."
+          # If debug mode is enabled, this sequence is skipped entirely by the condition above.
+          - service: system_log.write
+            data:
+              message: "Bambu Lab Spaghetti Detection: Main detection loop started (Debug Mode is OFF)."
+              level: info
+            alias: Log Main Detection Started
           - if: # Only run detection if the printer is actively printing.
               - condition: not
                 conditions:
@@ -1043,13 +1041,32 @@ action:
                          )
                       }}
                     alias: "Emergency: Check if forced timeout applies"
-                sequence:
+                sequence: # Emergency Sequence
                   - variables:
-                      # Sequence-specific variables for this action path.
                       notification_title_var: "Bambu Lab - EMERGENCY: Spaghetti Detected"
-                      _confidence_to_display_percent: "{{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) | int }}" # For this path, read live state
+                      _confidence_to_display_percent: "{{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) | int }}"
                       snapshot_log_prefix: "EMERGENCY"
                       persistent_notification_id_var: "bambu_spaghetti_alert_emergency"
+                      # Resolve inputs and define content variables here for the anchor
+                      resolved_task_sensor_input: !input printer_task_name_sensor
+                      resolved_progress_sensor_input: !input printer_print_progress_sensor
+                      resolved_remaining_sensor_input: !input printer_remaining_time_sensor
+                      resolved_timeout_minutes_input: !input timeout_minutes
+                      resolved_current_layer_sensor_input: !input printer_current_layer_sensor
+                      resolved_ext_notify_host_input: !input external_notification_host_url
+                      resolved_ha_host_input: !input home_assistant_host
+                      _effective_notification_host: "{{ resolved_ext_notify_host_input if resolved_ext_notify_host_input | string | trim != '' else resolved_ha_host_input }}"
+                      disable_action_title_var: "Disable {{ resolved_timeout_minutes_input }} min"
+                      _file_info_content: >-
+                        {%- if resolved_task_sensor_input != "" and states(resolved_task_sensor_input) != "unknown" and states(resolved_task_sensor_input) | trim != "" -%}File: {{ states(resolved_task_sensor_input) }}{%- else -%}{%- endif -%}
+                      _progress_info_content: >-
+                        {%- if resolved_progress_sensor_input != "" and states(resolved_progress_sensor_input) != "unknown" and states(resolved_progress_sensor_input) | trim != "" -%}Progress: {{ states(resolved_progress_sensor_input) }}%{%- else -%}{%- endif -%}
+                      _remaining_time_info_content: >-
+                        {%- if resolved_remaining_sensor_input != "" and states(resolved_remaining_sensor_input) != "unknown" and states(resolved_remaining_sensor_input) | trim != "" -%}{% set minutes = states(resolved_remaining_sensor_input) | int(0) %}{% set days = (minutes // (24 * 60)) %}{% set hours = (minutes % (24 * 60)) // 60 %}{% set remaining_minutes = minutes % 60 %}Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m{%- else -%}{%- endif -%}
+                      _current_layer_info_content: >-
+                        {%- if resolved_current_layer_sensor_input != "" and states(resolved_current_layer_sensor_input) != "unknown" and states(resolved_current_layer_sensor_input) | trim != "" -%}Layer: {{ states(resolved_current_layer_sensor_input) }}{%- else -%}{%- endif -%}
+                      _rendered_persistent_message: >-
+                        Confidence: {{ _confidence_to_display_percent }}%{% if _file_info_content | default('') | trim != "" -%}{{ "\n" }}{{ _file_info_content | default('') }}{% endif %}{% if _progress_info_content | default('') | trim != "" -%}{{ "\n" }}{{ _progress_info_content | default('') }}{% endif %}{% if _remaining_time_info_content | default('') | trim != "" -%}{{ "\n" }}{{ _remaining_time_info_content | default('') }}{% endif %}{% if _current_layer_info_content | default('') | trim != "" -%}{{ "\n" }}{{ _current_layer_info_content | default('') }}{% endif %}{% if INCLUDE_SNAPSHOT_VAR -%}{{ "\n" }}Snapshot URL: {{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}{%- endif %}
                   - choose: # Execute printer action (Pause/Stop/Warn).
                       *action_choose_anchor
                     alias: "Execute Anchored Action Choose (Emergency)"
@@ -1083,13 +1100,32 @@ action:
                     value_template: >-
                       {{ not ((now() - (states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local)) < timedelta(seconds=NOTIFICATION_COOLDOWN_SECONDS_VAR | int(60))) }}
                     alias: "Main Failure: Check Cooldown"
-                sequence:
+                sequence: # Main Failure Sequence
                   - variables:
-                      # Sequence-specific variables for this action path.
                       notification_title_var: "Bambu Lab - Spaghetti Detected"
-                      _confidence_to_display_percent: "{{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) | int }}" # For this path, read live state
+                      _confidence_to_display_percent: "{{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) | int }}"
                       snapshot_log_prefix: "MAIN FAILURE"
                       persistent_notification_id_var: "bambu_spaghetti_alert_main"
+                      # Resolve inputs and define content variables here for the anchor
+                      resolved_task_sensor_input: !input printer_task_name_sensor
+                      resolved_progress_sensor_input: !input printer_print_progress_sensor
+                      resolved_remaining_sensor_input: !input printer_remaining_time_sensor
+                      resolved_timeout_minutes_input: !input timeout_minutes
+                      resolved_current_layer_sensor_input: !input printer_current_layer_sensor
+                      resolved_ext_notify_host_input: !input external_notification_host_url
+                      resolved_ha_host_input: !input home_assistant_host
+                      _effective_notification_host: "{{ resolved_ext_notify_host_input if resolved_ext_notify_host_input | string | trim != '' else resolved_ha_host_input }}"
+                      disable_action_title_var: "Disable {{ resolved_timeout_minutes_input }} min"
+                      _file_info_content: >-
+                        {%- if resolved_task_sensor_input != "" and states(resolved_task_sensor_input) != "unknown" and states(resolved_task_sensor_input) | trim != "" -%}File: {{ states(resolved_task_sensor_input) }}{%- else -%}{%- endif -%}
+                      _progress_info_content: >-
+                        {%- if resolved_progress_sensor_input != "" and states(resolved_progress_sensor_input) != "unknown" and states(resolved_progress_sensor_input) | trim != "" -%}Progress: {{ states(resolved_progress_sensor_input) }}%{%- else -%}{%- endif -%}
+                      _remaining_time_info_content: >-
+                        {%- if resolved_remaining_sensor_input != "" and states(resolved_remaining_sensor_input) != "unknown" and states(resolved_remaining_sensor_input) | trim != "" -%}{% set minutes = states(resolved_remaining_sensor_input) | int(0) %}{% set days = (minutes // (24 * 60)) %}{% set hours = (minutes % (24 * 60)) // 60 %}{% set remaining_minutes = minutes % 60 %}Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m{%- else -%}{%- endif -%}
+                      _current_layer_info_content: >-
+                        {%- if resolved_current_layer_sensor_input != "" and states(resolved_current_layer_sensor_input) != "unknown" and states(resolved_current_layer_sensor_input) | trim != "" -%}Layer: {{ states(resolved_current_layer_sensor_input) }}{%- else -%}{%- endif -%}
+                      _rendered_persistent_message: >-
+                        Confidence: {{ _confidence_to_display_percent }}%{% if _file_info_content | default('') | trim != "" -%}{{ "\n" }}{{ _file_info_content | default('') }}{% endif %}{% if _progress_info_content | default('') | trim != "" -%}{{ "\n" }}{{ _progress_info_content | default('') }}{% endif %}{% if _remaining_time_info_content | default('') | trim != "" -%}{{ "\n" }}{{ _remaining_time_info_content | default('') }}{% endif %}{% if _current_layer_info_content | default('') | trim != "" -%}{{ "\n" }}{{ _current_layer_info_content | default('') }}{% endif %}{% if INCLUDE_SNAPSHOT_VAR -%}{{ "\n" }}Snapshot URL: {{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}{%- endif %}
                   - choose: # Execute printer action.
                       *action_choose_anchor
                     alias: "Execute Anchored Action Choose (Main Failure)"
@@ -1129,13 +1165,32 @@ action:
                     value_template: >-
                       {{ not ((now() - (states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local)) < timedelta(seconds=NOTIFICATION_COOLDOWN_SECONDS_VAR | int(60))) }}
                     alias: "Warning: Check Cooldown"
-                sequence:
+                sequence: # Warning Sequence
                   - variables:
-                      # Sequence-specific variables for this action path.
                       notification_title_var: "Bambu Lab - Potential Issue (Warning)"
-                      _confidence_to_display_percent: "{{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) | int }}" # For this path, read live state
+                      _confidence_to_display_percent: "{{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) | int }}"
                       snapshot_log_prefix: "WARNING"
                       persistent_notification_id_var: "bambu_spaghetti_alert_warning"
+                      # Resolve inputs and define content variables here for the anchor
+                      resolved_task_sensor_input: !input printer_task_name_sensor
+                      resolved_progress_sensor_input: !input printer_print_progress_sensor
+                      resolved_remaining_sensor_input: !input printer_remaining_time_sensor
+                      resolved_timeout_minutes_input: !input timeout_minutes
+                      resolved_current_layer_sensor_input: !input printer_current_layer_sensor
+                      resolved_ext_notify_host_input: !input external_notification_host_url
+                      resolved_ha_host_input: !input home_assistant_host
+                      _effective_notification_host: "{{ resolved_ext_notify_host_input if resolved_ext_notify_host_input | string | trim != '' else resolved_ha_host_input }}"
+                      disable_action_title_var: "Disable {{ resolved_timeout_minutes_input }} min"
+                      _file_info_content: >-
+                        {%- if resolved_task_sensor_input != "" and states(resolved_task_sensor_input) != "unknown" and states(resolved_task_sensor_input) | trim != "" -%}File: {{ states(resolved_task_sensor_input) }}{%- else -%}{%- endif -%}
+                      _progress_info_content: >-
+                        {%- if resolved_progress_sensor_input != "" and states(resolved_progress_sensor_input) != "unknown" and states(resolved_progress_sensor_input) | trim != "" -%}Progress: {{ states(resolved_progress_sensor_input) }}%{%- else -%}{%- endif -%}
+                      _remaining_time_info_content: >-
+                        {%- if resolved_remaining_sensor_input != "" and states(resolved_remaining_sensor_input) != "unknown" and states(resolved_remaining_sensor_input) | trim != "" -%}{% set minutes = states(resolved_remaining_sensor_input) | int(0) %}{% set days = (minutes // (24 * 60)) %}{% set hours = (minutes % (24 * 60)) // 60 %}{% set remaining_minutes = minutes % 60 %}Remaining: {% if days > 0 %}{{days}}d {% endif%}{% if hours > 0 %}{{hours}}h {% endif %}{{remaining_minutes}}m{%- else -%}{%- endif -%}
+                      _current_layer_info_content: >-
+                        {%- if resolved_current_layer_sensor_input != "" and states(resolved_current_layer_sensor_input) != "unknown" and states(resolved_current_layer_sensor_input) | trim != "" -%}Layer: {{ states(resolved_current_layer_sensor_input) }}{%- else -%}{%- endif -%}
+                      _rendered_persistent_message: >-
+                        Confidence: {{ _confidence_to_display_percent }}%{% if _file_info_content | default('') | trim != "" -%}{{ "\n" }}{{ _file_info_content | default('') }}{% endif %}{% if _progress_info_content | default('') | trim != "" -%}{{ "\n" }}{{ _progress_info_content | default('') }}{% endif %}{% if _remaining_time_info_content | default('') | trim != "" -%}{{ "\n" }}{{ _remaining_time_info_content | default('') }}{% endif %}{% if _current_layer_info_content | default('') | trim != "" -%}{{ "\n" }}{{ _current_layer_info_content | default('') }}{% endif %}{% if INCLUDE_SNAPSHOT_VAR -%}{{ "\n" }}Snapshot URL: {{ _effective_notification_host | default('') }}/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v={{ now().timestamp() | int }}{%- endif %}
                   # Only send notification, no printer action for this warning case.
                   - sequence: *prepare_and_send_notification_anchor
                     alias: "Prepare and Send WARNING Notification"
