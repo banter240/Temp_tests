@@ -16,7 +16,7 @@ blueprint:
   # - **Configurable Timeout Behavior:** Timeout feature can be toggled, emergency override can be optionally disabled. Notification button for timeout is shown only if feature is enabled and helper is configured.
   #
 
-  name: Bambu Lab - Advanced Spaghetti Detection v1.10.8
+  name: Bambu Lab - Advanced Spaghetti Detection v1.10.10
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -427,12 +427,12 @@ variables:
   EMERGENCY_ACTION_THRESHOLD_VAR: !input emergency_action_threshold
   WARN_BELOW_FAILURE_THRESHOLD_VAR: !input warn_below_failure_threshold
   DEBUG_MODE_ENABLED_BP_VAR: !input debug_mode_enabled # Explicit variable for debug_mode_enabled
-  ENABLE_DETECTION_TIMEOUT_FEATURE_VAR: !input enable_detection_timeout_feature # New
+  ENABLE_DETECTION_TIMEOUT_FEATURE_VAR: !input enable_detection_timeout_feature
   TIMEOUT_MINUTES_VAR: !input timeout_minutes
   DETECTION_DISABLE_UNTIL_HELPER_VAR: !input detection_disable_until_helper
   INCLUDE_SNAPSHOT_VAR: !input include_snapshot_in_notification
   PRINTER_CHAMBER_LIGHT_VAR: !input printer_chamber_light # Globally accessible for the light control anchor
-  FORCE_DISABLE_EMERGENCY_VAR: !input force_disable_emergency_during_timeout # New
+  FORCE_DISABLE_EMERGENCY_VAR: !input force_disable_emergency_during_timeout
   NOTIFICATION_COOLDOWN_SECONDS_VAR: !input notification_cooldown_seconds
   # Advanced Tuning Variables
   ADVANCED_TUNING_ENABLED_VAR: !input advanced_tuning_enabled
@@ -634,20 +634,37 @@ action:
           - condition: trigger
             id: BAMBU_LAB_DEBUG_TRIGGER
           - condition: template # Ensure debug mode is actually enabled by the user.
-            value_template: !input debug_mode_enabled
-          # Respect detection disable timeout also in debug mode, if feature is enabled and helper is set.
-          - condition: template
-            value_template: >-
-              {{ not (ENABLE_DETECTION_TIMEOUT_FEATURE_VAR and
-                      DETECTION_DISABLE_UNTIL_HELPER_VAR | string | trim != '' and
-                      (now() < (states(DETECTION_DISABLE_UNTIL_HELPER_VAR) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local))
-                     ) }}
+            value_template: "{{ DEBUG_MODE_ENABLED_BP_VAR }}" # Use the explicit variable
+          # Die komplexe Condition 3 wird jetzt innerhalb der Sequenz geprüft.
         sequence:
-          - service: system_log.write
+          # Erste Aktion in der Debug-Sequenz: Prüfe Condition 3.
+          - if:
+              # Diese Bedingung ist TRUE, wenn der Debug-Modus aufgrund von Timeout-Regeln NICHT laufen soll.
+              - condition: template
+                value_template: >-
+                  {% set timeout_is_active_and_configured = (
+                    ENABLE_DETECTION_TIMEOUT_FEATURE_VAR and
+                    DETECTION_DISABLE_UNTIL_HELPER_VAR | string | trim != '' and
+                    (now() < (states(DETECTION_DISABLE_UNTIL_HELPER_VAR) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local))
+                  ) %}
+                  {# Debug soll NICHT laufen, wenn: Timeout ist aktiv UND Emergency WIRD durch Timeout blockiert #}
+                  {# This evaluates to true if debug should be BLOCKED #}
+                  {{ timeout_is_active_and_configured and FORCE_DISABLE_EMERGENCY_VAR }}
+
+            then:
+              - service: system_log.write
+                data:
+                  message: "DEBUG MODE: Skipped due to active timeout and 'Force Disable Emergency' setting."
+                  level: info
+                alias: "Log: Debug Skipped by Timeout Rules"
+              - stop: "Debug Mode execution stopped by timeout configuration."
+            # else: # Wenn die obige if-Bedingung false ist, wird der Rest der Sequenz ausgeführt.
+          # Wenn wir hier sind, darf der Debug-Modus laufen (entweder kein Timeout oder Timeout wird übergangen).
+          - service: system_log.write # Dieser Log sollte jetzt immer erscheinen, wenn die ersten beiden Bedingungen im choose erfüllt sind und die if-Bedingung oben false war.
             data:
-              message: "DEBUG MODE: Simulated detection triggered."
-              level: warning # Using warning for higher visibility during debugging.
-            alias: Log Debug Trigger Activation
+              message: "DEBUG MODE: Sequence started (passed timeout checks)."
+              level: warning
+            alias: "Log: Debug Sequence Started"
           - if: # Only take snapshot if enabled in blueprint inputs.
               - condition: template
                 value_template: "{{ INCLUDE_SNAPSHOT_VAR }}"
