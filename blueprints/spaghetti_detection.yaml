@@ -494,9 +494,9 @@ variables:
                   { 'action': 'BAMBU_LAB_STOP_PRINTING', 'title': 'Stop Printing' }
               ] %}
               {% if ENABLE_DETECTION_TIMEOUT_FEATURE_VAR and DETECTION_DISABLE_UNTIL_HELPER_VAR | string | trim != '' %}
-                {% set base_actions = base_actions + [{
+                {% set base_actions = base_actions + [
                   { 'action': 'BAMBU_LAB_DISABLE_DETECTION', 'title': disable_action_title_var | default('Disable Detection') }
-                }] %}
+                ] %}
               {% endif %}
               {% set ns.data_dict = ns.data_dict | combine({'actions': base_actions}) %}
               {% if INCLUDE_SNAPSHOT_VAR %}
@@ -533,9 +533,9 @@ variables:
                   { 'action': 'BAMBU_LAB_STOP_PRINTING', 'title': 'Stop Printing' }
               ] %}
               {% if ENABLE_DETECTION_TIMEOUT_FEATURE_VAR and DETECTION_DISABLE_UNTIL_HELPER_VAR | string | trim != '' %}
-                {% set base_actions = base_actions + [{
+                {% set base_actions = base_actions + [
                   { 'action': 'BAMBU_LAB_DISABLE_DETECTION', 'title': disable_action_title_var | default('Disable Detection') }
-                }] %}
+                ] %}
               {% endif %}
               {% set ns.data_dict = ns.data_dict | combine({'actions': base_actions}) %}
               {% if INCLUDE_SNAPSHOT_VAR %}
