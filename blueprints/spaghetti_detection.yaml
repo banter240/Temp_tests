@@ -16,7 +16,7 @@ blueprint:
   # - **Configurable Timeout Behavior:** Timeout feature can be toggled, emergency override can be optionally disabled. Notification button for timeout is shown only if feature is enabled and helper is configured.
   #
 
-  name: Bambu Lab - Advanced Spaghetti Detection v1.10.6
+  name: Bambu Lab - Advanced Spaghetti Detection v1.10.8
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -846,7 +846,7 @@ action:
           # If debug mode is enabled, stop the main detection loop to give debug priority and avoid conflicts.
           - if:
               - condition: template
-                value_template: !input debug_mode_enabled
+                value_template: "{{ DEBUG_MODE_ENABLED_BP_VAR }}" # Use the explicit variable
             then:
               - service: system_log.write
                 data:
