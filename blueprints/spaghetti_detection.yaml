@@ -426,6 +426,7 @@ variables:
   FAILURE_PERCENTAGE_THRESHOLD_VAR: !input failure_percentage_threshold
   EMERGENCY_ACTION_THRESHOLD_VAR: !input emergency_action_threshold
   WARN_BELOW_FAILURE_THRESHOLD_VAR: !input warn_below_failure_threshold
+  DEBUG_MODE_ENABLED_BP_VAR: !input debug_mode_enabled # Explicit variable for debug_mode_enabled
   ENABLE_DETECTION_TIMEOUT_FEATURE_VAR: !input enable_detection_timeout_feature # New
   TIMEOUT_MINUTES_VAR: !input timeout_minutes
   DETECTION_DISABLE_UNTIL_HELPER_VAR: !input detection_disable_until_helper
@@ -611,6 +612,21 @@ action:
       message: "Bambu Lab Spaghetti Detection: Automation action initiated by trigger ID '{{ trigger.id | default('unknown') }}'."
       level: info
     alias: Log Automation Action Start
+  # --- TEMPORARY DEBUG LOGGING ---
+  - service: system_log.write
+    data:
+      message: >
+        RUN-TIME DEBUG VALUES (Trigger ID: {{ trigger.id | default('unknown') }}):
+        1. Input 'debug_mode_enabled' (via DEBUG_MODE_ENABLED_BP_VAR): {{ DEBUG_MODE_ENABLED_BP_VAR }}
+        2. Input 'enable_detection_timeout_feature' (via ENABLE_DETECTION_TIMEOUT_FEATURE_VAR): {{ ENABLE_DETECTION_TIMEOUT_FEATURE_VAR }}
+        3. Input 'detection_disable_until_helper' (via DETECTION_DISABLE_UNTIL_HELPER_VAR): {{ DETECTION_DISABLE_UNTIL_HELPER_VAR }}
+        4. Input 'force_disable_emergency_during_timeout' (via FORCE_DISABLE_EMERGENCY_VAR): {{ FORCE_DISABLE_EMERGENCY_VAR }}
+        5. State of Timeout Helper '{{ DETECTION_DISABLE_UNTIL_HELPER_VAR }}': {{ states(DETECTION_DISABLE_UNTIL_HELPER_VAR if DETECTION_DISABLE_UNTIL_HELPER_VAR | string | trim != '' else 'sensor.time') }}
+        6. Calculated 'timeout_is_active_and_configured': {{ ENABLE_DETECTION_TIMEOUT_FEATURE_VAR and DETECTION_DISABLE_UNTIL_HELPER_VAR | string | trim != '' and (now() < (states(DETECTION_DISABLE_UNTIL_HELPER_VAR if DETECTION_DISABLE_UNTIL_HELPER_VAR | string | trim != '' else '1970-01-01T00:00:00+00:00') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local)) }}
+        7. Calculated 'Condition 3 for Debug Path': {{ (not (ENABLE_DETECTION_TIMEOUT_FEATURE_VAR and DETECTION_DISABLE_UNTIL_HELPER_VAR | string | trim != '' and (now() < (states(DETECTION_DISABLE_UNTIL_HELPER_VAR if DETECTION_DISABLE_UNTIL_HELPER_VAR | string | trim != '' else '1970-01-01T00:00:00+00:00') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local)))) or ((ENABLE_DETECTION_TIMEOUT_FEATURE_VAR and DETECTION_DISABLE_UNTIL_HELPER_VAR | string | trim != '' and (now() < (states(DETECTION_DISABLE_UNTIL_HELPER_VAR if DETECTION_DISABLE_UNTIL_HELPER_VAR | string | trim != '' else '1970-01-01T00:00:00+00:00') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local))) and (not FORCE_DISABLE_EMERGENCY_VAR)) }}
+      level: warning
+    alias: Temporary Runtime Debug Values
+  # --- END TEMPORARY DEBUG LOGGING ---
   - choose:
       # --- Handle Debug Trigger ---
       # This has the highest priority among periodic triggers to allow testing.
