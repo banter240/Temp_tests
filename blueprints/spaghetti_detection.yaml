@@ -16,7 +16,7 @@ blueprint:
   # - **Configurable Timeout Behavior:** Timeout feature can be toggled, emergency override can be optionally disabled. Notification button for timeout is shown only if feature is enabled and helper is configured.
   #
 
-  name: Bambu Lab - Advanced Spaghetti Detection v1.10.14
+  name: Bambu Lab - Advanced Spaghetti Detection v1.10.15
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
@@ -594,8 +594,8 @@ variables:
         - service: persistent_notification.create
           data:
             notification_id: "{{ persistent_notification_id_var | default('bambu_spaghetti_alert_generic') }}"
-            title: "{{ notification_title_var }}" # From calling scope
-            message: "{{ _rendered_persistent_message }}" # From calling scope's variables
+            title: "{{ notification_title_var | default('Spaghetti Alert') }}" # Added default
+            message: "{{ _rendered_persistent_message | default('Details not available.') }}" # Added default
           # Alias will be set in the calling sequence
 
 mode: single
