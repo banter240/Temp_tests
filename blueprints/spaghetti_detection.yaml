@@ -13,23 +13,25 @@ blueprint:
   # - **Detection Timeout Feature:** Temporarily pause detection & non-emergency alerts via notification.
   # - **Algorithm Fine-Tuning (Expert):** Optional inputs to adjust EWMA period and key threshold calculation factors.
   # - **Integrated Debug Mode:** Comprehensive testing of the notification pipeline with simulated confidence.
+  # - **Configurable Timeout Behavior:** Timeout feature can be toggled, emergency override can be optionally disabled. Notification button for timeout is shown only if feature is enabled and helper is configured.
   #
 
-  name: Bambu Lab - Advanced Spaghetti Detection v1.96
+  name: Bambu Lab - Advanced Spaghetti Detection v1.98
   description: |
     Detects spaghetti failures for Bambu Lab printers using Obico ML API.
 
     **Setup Instructions & Origin:**
     This blueprint is based on the work from nberktumer. For initial setup of Obico (formerly The Spaghetti Detective),
-    the required Home Assistant custom integration (`bambu_lab_p1_spaghetti_detection`), and the necessary number/datetime helpers,
+    the required Home Assistant custom integration (`bambu_lab_p1_spaghetti_detection`),
     please follow the instructions at: https://github.com/nberktumer/ha-bambu-lab-p1-spaghetti-detection
     **Then, use THIS blueprint file for the advanced features.**
-
-    **Important Setup for Timeout Feature:**
-    To use the 'Detection Disable Timeout' functionality, you need to manually create an `input_datetime` helper in Home Assistant:
-    1. Go to "Settings" > "Devices & Services" > "Helpers".
-    2. Click "Add Helper" and choose "Date and/or time".
-    3. Ensure "Date and Time" is selected, give it a name (e.g., "Spaghetti Detection Timeout Until"), and select it in this blueprint.
+    
+    **Optional Setup for Timeout Feature:**
+    If you enable the 'Detection Timeout Feature' below, you need to:
+    1. Manually create an `input_datetime` helper in Home Assistant ("Settings" > "Devices & Services" > "Helpers").
+    2. Choose "Date and/or time".
+    3. Ensure "Date and Time" is selected for the helper.
+    4. Give it a name (e.g., "Spaghetti Detection Timeout Until") and select this helper in the 'Detection Disable Datetime Helper' input field.
 
     **Snapshot Setup for Notifications:**
     If 'Include Snapshot in Notifications' is enabled:
@@ -293,15 +295,29 @@ blueprint:
             - domain: sensor # Can be from bambu_lab or other integrations
 
     # --- Detection Timeout Function ---
+    enable_detection_timeout_feature:
+      name: Enable Detection Timeout Feature
+      description: "If enabled, allows temporarily disabling detection via a notification action using an input_datetime helper."
+      default: true
+      selector:
+        boolean:
+
     detection_disable_until_helper:
-      name: Detection Disable Datetime Helper
+      name: (Optional) Detection Disable Datetime Helper
       description: |
-        An `input_datetime` helper (with "Date and Time" enabled) is required for the feature that temporarily disables detection.
-        Create this helper manually ("Settings" > "Devices & Services" > "Helpers").
-        Ensure "Date and Time" is selected for the helper.
+        An `input_datetime` helper (with "Date and Time" enabled). Required if 'Enable Detection Timeout Feature' is ON.
+        Create this helper manually if using the timeout feature.
+      default: "" # Optional
       selector:
         entity:
           domain: input_datetime
+
+    force_disable_emergency_during_timeout:
+      name: Force Disable Emergency Mode During Active Timeout
+      description: "If ON, an active detection timeout will ALSO block EMERGENCY actions/notifications. Default is OFF (Emergency overrides timeout)."
+      default: false
+      selector:
+        boolean:
     timeout_minutes:
       name: Detection Disable Timeout (Minutes)
       description: "Duration in minutes to disable detection actions/notifications via notification action (Default: 60 minutes)."
@@ -410,10 +426,12 @@ variables:
   FAILURE_PERCENTAGE_THRESHOLD_VAR: !input failure_percentage_threshold
   EMERGENCY_ACTION_THRESHOLD_VAR: !input emergency_action_threshold
   WARN_BELOW_FAILURE_THRESHOLD_VAR: !input warn_below_failure_threshold
+  ENABLE_DETECTION_TIMEOUT_FEATURE_VAR: !input enable_detection_timeout_feature # New
   TIMEOUT_MINUTES_VAR: !input timeout_minutes
   DETECTION_DISABLE_UNTIL_HELPER_VAR: !input detection_disable_until_helper
   INCLUDE_SNAPSHOT_VAR: !input include_snapshot_in_notification
   PRINTER_CHAMBER_LIGHT_VAR: !input printer_chamber_light # Globally accessible for the light control anchor
+  FORCE_DISABLE_EMERGENCY_VAR: !input force_disable_emergency_during_timeout # New
   NOTIFICATION_COOLDOWN_SECONDS_VAR: !input notification_cooldown_seconds
   # Advanced Tuning Variables
   ADVANCED_TUNING_ENABLED_VAR: !input advanced_tuning_enabled
@@ -469,13 +487,18 @@ variables:
                 'ttl': 0,
                 'priority': 'high',
                 'channel': 'alarm_stream',
-                'push': {'sound': {'name': 'default', 'critical': 1, 'volume': 0.75}},
-                'actions': [
-                  { 'action': 'BAMBU_LAB_RESUME_PRINTING', 'title': 'Resume Printing' },
-                  { 'action': 'BAMBU_LAB_STOP_PRINTING', 'title': 'Stop Printing' },
-                  { 'action': 'BAMBU_LAB_DISABLE_DETECTION', 'title': disable_action_title_var | default('Disable Detection') }
-                ]
+                'push': {'sound': {'name': 'default', 'critical': 1, 'volume': 0.75}}
               }) %}
+              {% set base_actions = [
+                  { 'action': 'BAMBU_LAB_RESUME_PRINTING', 'title': 'Resume Printing' },
+                  { 'action': 'BAMBU_LAB_STOP_PRINTING', 'title': 'Stop Printing' }
+              ] %}
+              {% if ENABLE_DETECTION_TIMEOUT_FEATURE_VAR and DETECTION_DISABLE_UNTIL_HELPER_VAR | string | trim != '' %}
+                {% set base_actions = base_actions + [{
+                  { 'action': 'BAMBU_LAB_DISABLE_DETECTION', 'title': disable_action_title_var | default('Disable Detection') }
+                }] %}
+              {% endif %}
+              {% set ns.data_dict = ns.data_dict | combine({'actions': base_actions}) %}
               {% if INCLUDE_SNAPSHOT_VAR %}
                 {% set ns.data_dict = ns.data_dict | combine({'image': _effective_notification_host | default('') ~ '/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v=' ~ (now().timestamp() | int)}) %}
               {% endif %}
@@ -504,12 +527,17 @@ variables:
               {% endif -%}
             data: > # This inner 'data' key is for mobile_app specific parameters like image and actions
               {% set ns = namespace(data_dict = {
-                'actions': [
-                  { 'action': 'BAMBU_LAB_RESUME_PRINTING', 'title': 'Resume Printing' },
-                  { 'action': 'BAMBU_LAB_STOP_PRINTING', 'title': 'Stop Printing' },
-                  { 'action': 'BAMBU_LAB_DISABLE_DETECTION', 'title': disable_action_title_var | default('Disable Detection') }
-                ]
               }) %}
+              {% set base_actions = [
+                  { 'action': 'BAMBU_LAB_RESUME_PRINTING', 'title': 'Resume Printing' },
+                  { 'action': 'BAMBU_LAB_STOP_PRINTING', 'title': 'Stop Printing' }
+              ] %}
+              {% if ENABLE_DETECTION_TIMEOUT_FEATURE_VAR and DETECTION_DISABLE_UNTIL_HELPER_VAR | string | trim != '' %}
+                {% set base_actions = base_actions + [{
+                  { 'action': 'BAMBU_LAB_DISABLE_DETECTION', 'title': disable_action_title_var | default('Disable Detection') }
+                }] %}
+              {% endif %}
+              {% set ns.data_dict = ns.data_dict | combine({'actions': base_actions}) %}
               {% if INCLUDE_SNAPSHOT_VAR %}
                 {% set ns.data_dict = ns.data_dict | combine({'image': _effective_notification_host | default('') ~ '/local/snapshots/bambu_lab_spaghetti_snapshot.jpg?v=' ~ (now().timestamp() | int)}) %}
               {% endif %}
@@ -591,8 +619,13 @@ action:
             id: BAMBU_LAB_DEBUG_TRIGGER
           - condition: template # Ensure debug mode is actually enabled by the user.
             value_template: !input debug_mode_enabled
-          - condition: template # Respect detection disable timeout also in debug mode.
-            value_template: "{{ not (now() < (states(DETECTION_DISABLE_UNTIL_HELPER_VAR) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local)) }}"
+          # Respect detection disable timeout also in debug mode, if feature is enabled and helper is set.
+          - condition: template
+            value_template: >-
+              {{ not (ENABLE_DETECTION_TIMEOUT_FEATURE_VAR and
+                      DETECTION_DISABLE_UNTIL_HELPER_VAR | string | trim != '' and
+                      (now() < (states(DETECTION_DISABLE_UNTIL_HELPER_VAR) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local))
+                     ) }}
         sequence:
           - service: system_log.write
             data:
@@ -652,7 +685,7 @@ action:
               _current_layer_info_content: >-
                 {%- if resolved_current_layer_sensor_input != "" and states(resolved_current_layer_sensor_input) != "unknown" and states(resolved_current_layer_sensor_input) | trim != "" -%}
                 Layer: {{ states(resolved_current_layer_sensor_input) }}
-                {%- else -%}{%- endif -%},
+                {%- else -%}{%- endif -%}
               _rendered_persistent_message: >- # Pre-rendered message for persistent notification.
                 Confidence: {{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) | int }}%
                 {% if _file_info_content | default('') | trim != "" -%}{{ "\n" }}{{ _file_info_content | default('') }}{% endif -%}
@@ -764,15 +797,30 @@ action:
           - condition: trigger
             id: BAMBU_LAB_DISABLE_DETECTION
         sequence:
-          - service: input_datetime.set_datetime
-            target:
-              entity_id: !input detection_disable_until_helper
-            data:
-              datetime: "{{ now() + timedelta(minutes=TIMEOUT_MINUTES_VAR | int(0)) }}"
-          - service: system_log.write
-            data:
-              message: "Bambu Lab Spaghetti Detection: Temporarily disabled actions/notifications for {{ TIMEOUT_MINUTES_VAR }} minutes via notification action."
-              level: info
+          # Conditional stop if the feature is not configured, to prevent errors if the helper is missing.
+          - if:
+              - condition: template
+                value_template: "{{ not (ENABLE_DETECTION_TIMEOUT_FEATURE_VAR and DETECTION_DISABLE_UNTIL_HELPER_VAR | string | trim != '') }}"
+            then:
+              - service: system_log.write
+                data:
+                  message: "Bambu Lab Spaghetti Detection: 'Disable Detection' action pressed, but feature not enabled or helper not configured. No action taken."
+                  level: warning
+              - stop: "Disable Detection action aborted: Timeout feature not fully configured."
+            else: # Only proceed if the feature is enabled and helper is configured.
+              - service: input_datetime.set_datetime
+                target:
+                  entity_id: !input detection_disable_until_helper
+                data:
+                  datetime: "{{ now() + timedelta(minutes=TIMEOUT_MINUTES_VAR | int(60)) }}" # Use int(60) as a robust fallback
+                alias: Set Detection Timeout Helper
+              - service: system_log.write
+                data:
+                  message: >
+                    Bambu Lab Spaghetti Detection: Temporarily disabled actions/notifications for {{ TIMEOUT_MINUTES_VAR | int(60) }} minutes
+                    via notification action. Timeout set on helper '{{ DETECTION_DISABLE_UNTIL_HELPER_VAR }}'
+                    to '{{ (now() + timedelta(minutes=TIMEOUT_MINUTES_VAR | int(60))).strftime('%Y-%m-%d %H:%M:%S') }}'.
+                  level: info
       # --- Main Spaghetti Detection Sequence ---
       # Triggered periodically by BAMBU_LAB_DETECTION_TRIGGER.
       - conditions:
@@ -980,35 +1028,25 @@ action:
               - stop: "API call processing failed for this cycle."
             alias: "Process API Response and Update Metrics"
 
-          # Prevent notification spam: only notify once per configured cooldown period for non-emergency events.
-          # This check is bypassed if an emergency threshold is met later.
-          - if:
-              - condition: template
-                value_template: >-
-                  {{ (now() - (states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local)) < timedelta(seconds=NOTIFICATION_COOLDOWN_SECONDS_VAR | int(60)) }}
-            then:
-              - stop: "Notification cooldown active."
-            alias: "Check Notification Cooldown"
-          
-          # Check if detection is temporarily disabled by user timeout (via notification action).
-          - if:
-              - condition: template
-                value_template: "{{ now() < (states(DETECTION_DISABLE_UNTIL_HELPER_VAR) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local) }}"
-            then:
-              - service: system_log.write
-                data:
-                  message: "Bambu Lab Spaghetti Detection: Action/Notification skipped due to active user-set timeout until {{ states(DETECTION_DISABLE_UNTIL_HELPER_VAR) }}."
-                  level: info
-              - stop: "Detection temporarily disabled by user timeout."
-            alias: "Check User-Set Detection Timeout"
-          
           # --- Main decision logic: Determine action based on confidence and thresholds ---
           - choose:
               # Case 1: Emergency Threshold Met
-              # This overrides user-set timeout and notification cooldown.
+              # This overrides user-set timeout and notification cooldown UNLESS 'force_disable_emergency_during_timeout' is ON.
               - conditions:
                   - condition: template
                     value_template: "{{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) >= (EMERGENCY_ACTION_THRESHOLD_VAR | int(0)) }}"
+                  # Condition to bypass timeout/cooldown unless FORCE_DISABLE_EMERGENCY_VAR is true
+                  - condition: template
+                    value_template: >-
+                      {{ not (
+                           FORCE_DISABLE_EMERGENCY_VAR and
+                           ENABLE_DETECTION_TIMEOUT_FEATURE_VAR and
+                           DETECTION_DISABLE_UNTIL_HELPER_VAR | string | trim != '' and
+                           (now() < (states(DETECTION_DISABLE_UNTIL_HELPER_VAR) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local))
+                         )
+                      }}
+                    alias: "Emergency: Check if forced timeout applies"
+                  # Note: Cooldown is implicitly bypassed for emergency unless the above condition (with FORCE_DISABLE_EMERGENCY_VAR) makes it behave like a normal alert.
                 sequence:
                   - if: # Only take snapshot if enabled.
                       - condition: template
@@ -1063,7 +1101,7 @@ action:
                       _current_layer_info_content: >-
                         {%- if resolved_current_layer_sensor_input != "" and states(resolved_current_layer_sensor_input) != "unknown" and states(resolved_current_layer_sensor_input) | trim != "" -%}
                         Layer: {{ states(resolved_current_layer_sensor_input) }}
-                        {%- else -%}{%- endif -%},
+                        {%- else -%}{%- endif -%}
                       _rendered_persistent_message: >- # Pre-rendered message for persistent notification.
                         Confidence: {{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) | int }}%
                         {% if _file_info_content | default('') | trim != "" -%}{{ "\n" }}{{ _file_info_content | default('') }}{% endif -%}
@@ -1103,10 +1141,19 @@ action:
               - conditions:
                   - condition: template # Confidence is at or above main failure threshold.
                     value_template: "{{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) >= (FAILURE_PERCENTAGE_THRESHOLD_VAR | int(0)) }}"
-                  - condition: template # User-set timeout is NOT active.
-                    value_template: "{{ not (now() < (states(DETECTION_DISABLE_UNTIL_HELPER_VAR) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local)) }}"
+                  # User-set timeout is NOT active (or feature disabled/helper not set)
+                  - condition: template
+                    value_template: >-
+                      {{ not (ENABLE_DETECTION_TIMEOUT_FEATURE_VAR and
+                              DETECTION_DISABLE_UNTIL_HELPER_VAR | string | trim != '' and
+                              (now() < (states(DETECTION_DISABLE_UNTIL_HELPER_VAR) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local))
+                             )
+                      }}
+                    alias: "Main Failure: Check Timeout"
                   - condition: template # Notification cooldown period is NOT active.
-                    value_template: "{{ not ((now() - (states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local) < timedelta(seconds=NOTIFICATION_COOLDOWN_SECONDS_VAR | int(60)))) }}"
+                    value_template: >-
+                      {{ not ((now() - (states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local)) < timedelta(seconds=NOTIFICATION_COOLDOWN_SECONDS_VAR | int(60))) }}
+                    alias: "Main Failure: Check Cooldown"
                 sequence:
                   - if: # Only take snapshot if enabled.
                       - condition: template
@@ -1160,7 +1207,7 @@ action:
                       _current_layer_info_content: >-
                         {%- if resolved_current_layer_sensor_input != "" and states(resolved_current_layer_sensor_input) != "unknown" and states(resolved_current_layer_sensor_input) | trim != "" -%}
                         Layer: {{ states(resolved_current_layer_sensor_input) }}
-                        {%- else -%}{%- endif -%},
+                        {%- else -%}{%- endif -%}
                       _rendered_persistent_message: >- # Pre-rendered message for persistent notification.
                         Confidence: {{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) | int }}%
                         {% if _file_info_content | default('') | trim != "" -%}{{ "\n" }}{{ _file_info_content | default('') }}{% endif -%}
@@ -1206,10 +1253,19 @@ action:
                   - condition: numeric_state # Confidence is ABOVE dynamic warning threshold (original algorithm logic).
                     entity_id: number.bambu_lab_p1_spaghetti_detection_p # Using raw 'p' for this check as per original logic
                     above: number.bambu_lab_p1_spaghetti_detection_thresh_warning
-                  - condition: template # User-set timeout is NOT active.
-                    value_template: "{{ not (now() < (states(DETECTION_DISABLE_UNTIL_HELPER_VAR) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local)) }}"
+                  # User-set timeout is NOT active (or feature disabled/helper not set)
+                  - condition: template
+                    value_template: >-
+                      {{ not (ENABLE_DETECTION_TIMEOUT_FEATURE_VAR and
+                              DETECTION_DISABLE_UNTIL_HELPER_VAR | string | trim != '' and
+                              (now() < (states(DETECTION_DISABLE_UNTIL_HELPER_VAR) | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local))
+                             )
+                      }}
+                    alias: "Warning: Check Timeout"
                   - condition: template # Notification cooldown period is NOT active.
-                    value_template: "{{ not ((now() - (states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local) < timedelta(seconds=NOTIFICATION_COOLDOWN_SECONDS_VAR | int(60)))) }}"
+                    value_template: >-
+                      {{ not ((now() - (states('datetime.bambu_lab_p1_spaghetti_detection_last_notify_time') | as_datetime(default=as_datetime('1970-01-01T00:00:00+00:00')) | as_local)) < timedelta(seconds=NOTIFICATION_COOLDOWN_SECONDS_VAR | int(60))) }}
+                    alias: "Warning: Check Cooldown"
                 sequence:
                   - if: # Only take snapshot if enabled.
                       - condition: template
@@ -1263,7 +1319,7 @@ action:
                       _current_layer_info_content: >-
                         {%- if resolved_current_layer_sensor_input != "" and states(resolved_current_layer_sensor_input) != "unknown" and states(resolved_current_layer_sensor_input) | trim != "" -%}
                         Layer: {{ states(resolved_current_layer_sensor_input) }}
-                        {%- else -%}{%- endif -%},
+                        {%- else -%}{%- endif -%}
                       _rendered_persistent_message: >- # Pre-rendered message for persistent notification.
                         Confidence: {{ (states('number.bambu_lab_p1_spaghetti_detection_normalized_p') | float(0) * 100) | int }}%
                         {% if _file_info_content | default('') | trim != "" -%}{{ "\n" }}{{ _file_info_content | default('') }}{% endif -%}
