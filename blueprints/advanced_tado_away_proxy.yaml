@@ -1,0 +1,398 @@
+blueprint:
+  # --- Advanced Tado Home/Away Pre-heating - Key Features ---
+  # This blueprint enhances standard home/away logic with intelligent pre-heating:
+  #
+  # - **Multi-Device Pre-heating:** Triggers pre-heating based on the approach of one or more configured devices.
+  # - **Dynamic Approach Detection:** Uses distance and calculated speed to determine if a device is actively approaching.
+  # - **Single Helper Management:** Stores all control data (device states, pre-heat status, cooldown, timeout)
+  #   in a single `input_text` helper using a JSON structure for streamlined configuration.
+  # - **Configurable Pre-heat Parameters:** Allows setting distance threshold and temperature increment.
+  # - **Individual Thermostat Control:** Adjusts each thermostat's temperature individually during pre-heat.
+  # - **Cooldown Period:** Prevents immediate re-triggering of pre-heating after someone arrives home.
+  # - **Activity Timeout:** Stops pre-heating if the approaching device becomes inactive for a configurable duration.
+  # - **Optional Notifications:** Provides notifications for pre-heat start, stop (arrival), and timeout events.
+  # - **Automatic Helper Cleanup:** Removes data for unconfigured devices from the helper during state transitions.
+  # - **Robust Initialization:** Designed to work even if the `input_text` helper is initially empty.
+
+  name: Advanced Tado Home/Away with Multi-Device Pre-heating (Single Helper) v1.0
+  description: >-
+    Controls climate entities based on presence. Pre-heats when one of several
+    selected devices approaches home.
+    Stores all dynamic data (distance, time, pre-heat status, timeout info) for multiple devices
+    in a single input_text helper (JSON).
+    Initialize the input_text helper ideally with: {"preheat_globally_active": false, "devices": {}, "preheat_cooldown_until_ts": 0, "preheat_triggered_by_device_id": null, "preheat_last_active_device_update_ts": 0}
+    Requires corresponding lists for trackers and their distance sensors.
+  domain: automation
+  input:
+    target_zone:
+      name: Zuhause Zone
+      description: Die Zonen-Entität, die "Zuhause" repräsentiert.
+      selector:
+        entity:
+          domain: zone
+    presence_trackers:
+      name: Presence Trackers (General)
+      description: Entities whose state change (Home/Away) should generally trigger the automation.
+      selector:
+        entity:
+          domain: [device_tracker, person]
+          multiple: true
+
+    preheat_triggering_trackers:
+      name: Pre-heat Triggering Trackers (Phones)
+      description: List of trackers (phones) that can trigger pre-heating. Order must match distance sensors!
+      selector:
+        entity:
+          domain: [device_tracker, person]
+          multiple: true
+    preheat_distance_sensors:
+      name: Corresponding Distance Sensors
+      description: List of distance sensors (in meters). Order must match pre-heat triggering trackers!
+      selector:
+        entity:
+          domain: sensor
+          multiple: true
+
+    climate_entities:
+      name: Climate Entities
+      description: The climate entities to be controlled.
+      selector:
+        target:
+          entity:
+            domain: climate
+
+    preheat_distance_threshold:
+      name: Pre-heat Distance Threshold (meters)
+      description: Distance in meters below which pre-heating is considered for a device.
+      default: 5000
+      selector:
+        number:
+          min: 500
+          max: 20000
+          step: 100
+          unit_of_measurement: "m"
+    preheat_temp_increment:
+      name: Pre-heat Temperature Increment (°C)
+      description: By how many degrees the temperature should be increased during pre-heating.
+      default: 0.5
+      selector:
+        number:
+          min: 0.1
+          max: 2.0
+          step: 0.1
+          unit_of_measurement: "°C"
+
+    unified_control_data_text: # Ersetzt preheat_active_boolean und multi_device_location_text
+      name: Unified Control Data (Input Text)
+      description: An input_text helper storing JSON data ('preheat_globally_active': bool, 'devices': {'TrackerID': {'dist': X, 'ts': Y}}).
+      selector:
+        entity:
+          domain: input_text
+
+    # Optionale Benachrichtigungen
+    notify_on_preheat_start:
+      name: (Optional) Notify on Pre-heat Start
+      description: Send a notification when pre-heating starts?
+      default: false
+      selector:
+        boolean: {}
+    notify_on_preheat_stop_arrival:
+      name: (Optional) Notify on Pre-heat Stop (Arrival)
+      description: Send a notification when pre-heating is stopped due to arrival?
+      default: false
+      selector:
+        boolean: {}
+    notification_target:
+      name: (Optional) Notification Target
+      description: The device or service to receive the notification (e.g., notify.mobile_app_my_phone).
+      default: ""
+      selector:
+        entity:
+          domain: notify
+    preheat_cooldown_minutes:
+      name: Pre-heat Cooldown After Arrival (minutes)
+      description: For how many minutes after arrival should no new pre-heating be started?
+      default: 15
+      selector:
+        number:
+          min: 0
+          max: 120
+          step: 5
+          unit_of_measurement: "min" # minutes
+
+    max_preheat_temp_number:
+      name: (Optional) Max. Pre-heat Temperature (Input Number)
+      description: Default: 20°C.
+      default: ""
+      selector:
+        entity:
+          domain: input_number
+    preheat_activity_timeout_minutes:
+      name: (Optional) Timeout for Active Pre-heating (minutes)
+      description: After how many minutes of inactivity of the triggering device should pre-heating be stopped? 0 disables timeout. Default: 60.
+      default: 60
+      selector:
+        number:
+          min: 0 # 0 bedeutet kein Timeout
+          max: 240
+          step: 15
+          unit_of_measurement: "min"
+    min_approach_speed_number:
+      name: (Optional) Min. Approach Speed (m/min) (Input Number)
+      description: Default: 100 m/min.
+      default: ""
+      selector:
+        entity:
+          domain: input_number
+    max_time_diff_speed_number:
+      name: (Optional) Max. Time Difference for Speed Calc. (min) (Input Number)
+      description: Default: 5 minutes.
+      default: ""
+      selector:
+        entity:
+          domain: input_number
+
+mode: single
+max_exceeded: silent
+
+variables:
+  _target_zone_entity: !input target_zone
+  _preheat_triggering_trackers_list: !input preheat_triggering_trackers
+  _preheat_distance_sensors_list: !input preheat_distance_sensors
+  _unified_control_data_helper: !input unified_control_data_text # Central helper for all control data
+  _climate_target_entities: !input climate_entities
+  _preheat_distance: !input preheat_distance_threshold
+  _preheat_increment: !input preheat_temp_increment
+  _cooldown_minutes_val: !input preheat_cooldown_minutes
+  _activity_timeout_minutes_val: !input preheat_activity_timeout_minutes
+
+  _max_preheat_temp: "{{ states(input_max_preheat_temp_number) | float(20) if input_max_preheat_temp_number else 20 }}"
+  _min_approach_mpm: "{{ states(input_min_approach_speed_number) | float(100) if input_min_approach_speed_number else 100 }}"
+  _max_time_diff_min: "{{ states(input_max_time_diff_speed_number) | float(5) if input_max_time_diff_speed_number else 5 }}"
+
+  # Parse current data from the JSON helper
+  _control_data_str: "{{ states(_unified_control_data_helper) }}"
+  _control_data_json: >
+    {% set parsed = from_json(_control_data_str) if _control_data_str and _control_data_str != 'unavailable' and _control_data_str | trim != '' else {} %}
+    {# Ensure base structure exists, including cooldown and timeout fields #}
+    {% set defaults = {'preheat_globally_active': false, 'preheat_cooldown_until_ts': 0, 'preheat_triggered_by_device_id': none, 'preheat_last_active_device_update_ts': 0, 'devices': {}} %}
+    {{ defaults | combine(parsed) }}
+  _is_preheat_globally_active: "{{ _control_data_json.get('preheat_globally_active', false) }}"
+  _preheat_triggered_by_device: "{{ _control_data_json.get('preheat_triggered_by_device_id', none) }}"
+  _preheat_last_device_update: "{{ _control_data_json.get('preheat_last_active_device_update_ts', 0) | int(0) }}"
+  _preheat_cooldown_active_until: "{{ _control_data_json.get('preheat_cooldown_until_ts', 0) | int(0) }}"
+  _all_devices_data: "{{ _control_data_json.get('devices', {}) }}"
+
+trigger:
+  - platform: state
+    entity_id: !input presence_trackers
+  - platform: numeric_state
+    entity_id: !input target_zone
+    above: "0"
+  - platform: numeric_state
+    entity_id: !input target_zone
+    below: "1"
+  - platform: state
+    entity_id: !input preheat_distance_sensors
+  # Trigger for timeout check (only if timeout is configured)
+  - platform: time_pattern
+    minutes: "/5" # Check every 5 minutes
+
+condition: []
+
+action:
+  - variables:
+      _triggered_distance_sensor_id: "{{ trigger.entity_id if trigger.platform == 'state' and trigger.entity_id in input_preheat_distance_sensors else none }}"
+      _triggered_tracker_entity_id: >
+        {% set sensor_id = _triggered_distance_sensor_id %}
+        {% if sensor_id %}
+          {% for i in range(input_preheat_distance_sensors | length) %}
+            {% if input_preheat_distance_sensors[i] == sensor_id %}
+              {{ input_preheat_triggering_trackers[i] }}
+            {% endif %}
+          {% endfor %}
+        {% else %}
+          {{ none }}
+        {% endif %}
+      _current_dist_for_triggered_tracker: "{{ states(_triggered_distance_sensor_id) | float(-1) if _triggered_distance_sensor_id else -1 }}"
+      _prev_data_for_triggered_tracker: "{{ _all_devices_data.get(_triggered_tracker_entity_id, {}) if _triggered_tracker_entity_id else {} }}"
+      _prev_dist_stored: "{{ _prev_data_for_triggered_tracker.get('dist', -1) | float(-1) }}"
+      _prev_ts_stored: "{{ _prev_data_for_triggered_tracker.get('ts', -1) | float(-1) }}"
+
+  # --- YAML Anchors for Reusable Action Sequences ---
+  - variables:
+      _update_control_data_action: &update_control_data_action
+        # This sequence expects _json_to_write_var to be set in the calling scope.
+        # _unified_control_data_helper (global var) must be accessible.
+        - service: input_text.set_value
+          target:
+            entity_id: "{{ _unified_control_data_helper }}"
+          data:
+            value: "{{ _json_to_write_var }}" # Must be set by the caller
+
+      _send_notification_action: &send_notification_action
+        # This sequence expects _notify_now_var (boolean), _notify_title_var, _notify_message_var
+        # to be set in the calling scope.
+        # It also uses input_notification_target (global var from blueprint inputs).
+        - if:
+            - "{{ _notify_now_var | default(false) }}"
+            - "{{ input_notification_target != '' }}" # Check if a target is configured
+          then:
+            - service: notify.{{ (input_notification_target).split('.')[1] }} # Assumes target is like 'notify.service_name'
+              data:
+                title: "{{ _notify_title_var }}"
+                message: "{{ _notify_message_var }}"
+
+  - choose:
+      # OPTION 1: SOMEONE IS HOME
+      - conditions:
+          - condition: numeric_state
+            entity_id: !input target_zone
+            above: "0"
+        sequence:
+          - service: climate.set_preset_mode
+            data: { preset_mode: home }
+            target: !input climate_entities
+          - variables:
+              _json_to_write_var: >-
+                {% set new_devices_data = {} %}
+                {% for tracker_id in _preheat_triggering_trackers_list %} {# Use var for consistency #}
+                  {% set _ = new_devices_data.update({tracker_id: {'dist': 99999, 'ts': now().timestamp()}}) %}
+                {% endfor %}
+                {{ {'preheat_globally_active': false, 'preheat_cooldown_until_ts': (now().timestamp() + (_cooldown_minutes_val * 60)) | int(0), 'preheat_triggered_by_device_id': none, 'preheat_last_active_device_update_ts': 0, 'devices': new_devices_data} | to_json }}
+          - action: *_update_control_data_action
+          - variables:
+              _notify_now_var: "{{ input_notify_on_preheat_stop_arrival and _is_preheat_globally_active }}" # Check status *before* reset
+              _notify_title_var: "Heating Control"
+              _notify_message_var: "Heating: Pre-heating stopped, someone has arrived."
+          - action: *_send_notification_action
+        alias: "Mode: Home - Set preset, reset control data"
+
+      # OPTION 2: NO ONE HOME, PRE-HEATING ALREADY GLOBALLY ACTIVE
+      - conditions:
+          - condition: state
+            entity_id: !input target_zone
+            state: "0"
+          - "{{ _is_preheat_globally_active == true }}"
+        sequence:
+          - if:
+              - "{{ _triggered_tracker_entity_id != none and _current_dist_for_triggered_tracker >= 0 }}"
+            then:
+              - variables:
+                  _json_to_write_var: >-
+                    {% set data_copy = _control_data_json | deepcopy %}
+                    {% set device_specific_data = data_copy.get('devices', {}) %}
+                    {% set _ = device_specific_data.update({_triggered_tracker_entity_id: {'dist': _current_dist_for_triggered_tracker, 'ts': now().timestamp()}}) %}
+                    {# If triggering device is the one that started current pre-heat cycle, update its timestamp #}
+                    {% if _triggered_tracker_entity_id == _preheat_triggered_by_device %}
+                      {% set _ = data_copy.update({'preheat_last_active_device_update_ts': now().timestamp()}) %}
+                    {% endif %}
+                    {% set _ = data_copy.update({'devices': device_specific_data}) %}
+                    {{ data_copy | to_json }}
+              - action: *_update_control_data_action
+        alias: "Mode: Away - Pre-heating active, update device location if applicable"
+
+      # OPTION 3: NO ONE HOME, PRE-HEATING GLOBALLY OFF - ATTEMPT TO START PRE-HEATING
+      - conditions:
+          - condition: state
+            entity_id: !input target_zone
+            state: "0"
+          - "{{ _is_preheat_globally_active == false }}" # Pre-heating not globally active yet
+          - condition: template # Cooldown period has expired
+            value_template: "{{ now().timestamp() > _preheat_cooldown_active_until }}"
+          - "{{ _triggered_tracker_entity_id != none and _current_dist_for_triggered_tracker >= 0 }}"
+          - condition: numeric_state
+            entity_id: "{{ _triggered_distance_sensor_id }}"
+            below: !input preheat_distance_threshold
+          - condition: template # Speed check
+            value_template: >
+              {% set current_ts = now().timestamp() %}
+              {% if _current_dist_for_triggered_tracker >= 0 and _prev_dist_stored >= 0 and _prev_ts_stored > 0 %}
+                {% if _current_dist_for_triggered_tracker < _prev_dist_stored %}
+                  {% set time_diff_seconds = current_ts - _prev_ts_stored %}
+                  {% if time_diff_seconds > 5 and time_diff_seconds < (_max_time_diff_min * 60) %}
+                    {% set dist_delta_meters = _prev_dist_stored - _current_dist_for_triggered_tracker %}
+                    {% set required_dist_for_time = (_min_approach_mpm / 60) * time_diff_seconds %}
+                    {{ dist_delta_meters >= required_dist_for_time }}
+                  {% else %} false {% endif %}
+                {% else %} false {% endif %}
+              {% else %} false {% endif %}
+        sequence:
+          - alias: "Pre-heat: Adjust temperatures individually"
+            repeat:
+              for_each: "{{ expand(input_climate_entities) | map(attribute='entity_id') | list }}"
+              sequence:
+                - service: climate.set_temperature
+                  target:
+                    entity_id: "{{ repeat.item }}"
+                  data:
+                    temperature: >
+                      {% set current_thermostat_temp = state_attr(repeat.item, 'temperature') | float(18) %}
+                      {% set new_target_temp = current_thermostat_temp + _preheat_increment %}
+                      {{ [new_target_temp, _max_preheat_temp] | min }}
+          - variables:
+              _json_to_write_var: >-
+                {% set data_copy = _control_data_json | deepcopy %}
+                {# Set triggering device and initial update timestamp #}
+                {% set _ = data_copy.update({'preheat_globally_active': true, 'preheat_triggered_by_device_id': _triggered_tracker_entity_id, 'preheat_last_active_device_update_ts': now().timestamp()}) %}
+                {% set device_specific_data = data_copy.get('devices', {}) %}
+                {% set _ = device_specific_data.update({_triggered_tracker_entity_id: {'dist': _current_dist_for_triggered_tracker, 'ts': now().timestamp()}}) %}
+                {% set _ = data_copy.update({'devices': device_specific_data}) %}
+                {{ data_copy | to_json }}
+          - action: *_update_control_data_action
+          - variables:
+              _notify_now_var: "{{ input_notify_on_preheat_start }}"
+              _notify_title_var: "Heating Control"
+              _notify_message_var: "Heating: Pre-heating started for {{ state_attr(_triggered_tracker_entity_id, 'friendly_name') | default(_triggered_tracker_entity_id) }}."
+          - action: *_send_notification_action
+        alias: "Mode: Away - Start pre-heating for triggering device"
+
+      # OPTION X: TIMEOUT CHECK (if triggered by time pattern)
+      - conditions:
+          - condition: trigger # Only if time pattern trigger fired
+            platform: time_pattern
+          - "{{ _is_preheat_globally_active == true }}" # Pre-heating must be globally active
+          - "{{ _activity_timeout_minutes_val > 0 }}" # Timeout must be configured
+          - "{{ _preheat_triggered_by_device != none }}" # Must be a device that triggered pre-heating
+          - condition: template # Check if last device update is too old
+            value_template: "{{ (now().timestamp() - _preheat_last_device_update) > (_activity_timeout_minutes_val * 60) }}"
+        sequence:
+          - variables:
+              _json_to_write_var: >-
+                {% set data_copy = _control_data_json | deepcopy %}
+                {% set _ = data_copy.update({'preheat_globally_active': false, 'preheat_triggered_by_device_id': none, 'preheat_last_active_device_update_ts': 0 }) %}
+                {{ data_copy | to_json }}
+          - action: *_update_control_data_action
+          - variables:
+              _notify_now_var: "{{ input_notify_on_preheat_start }}" # Re-use start toggle for timeout notification
+              _notify_title_var: "Heating Control (Timeout)"
+              _notify_message_var: "Heating: Pre-heating stopped due to inactivity of {{ state_attr(_preheat_triggered_by_device, 'friendly_name') | default(_preheat_triggered_by_device) }}."
+          - action: *_send_notification_action
+        alias: "System: Pre-heating Timeout Check"
+
+      # OPTION 4: NO ONE HOME, PRE-HEATING OFF, CONDITIONS NOT MET (FALLBACK TO AWAY)
+      - conditions: [] # Standard-Fallback
+        sequence:
+          - service: climate.set_preset_mode
+            data: { preset_mode: away }
+            target: !input climate_entities
+          - variables:
+              _json_to_write_var: >-
+                {# Always rebuild 'devices' part based on current configuration #}
+                {% set updated_devices_data = {} %}
+                {% for i in range(_preheat_triggering_trackers_list | length) %}
+                  {% set tracker_id = _preheat_triggering_trackers_list[i] %}
+                  {% set dist_sensor_id = _preheat_distance_sensors_list[i] %}
+                  {% set current_dist = 0.0 %}
+                  {# If this action was triggered by the specific sensor, use its fresh 'to_state' value, else current state #}
+                  {% if _triggered_distance_sensor_id == dist_sensor_id and _current_dist_for_triggered_tracker >= 0 %}
+                    {% set current_dist = _current_dist_for_triggered_tracker %}
+                  {% else %}
+                    {% set current_dist = states(dist_sensor_id) | float(99999) %}
+                  {% endif %}
+                  {% set _ = updated_devices_data.update({tracker_id: {'dist': current_dist | float(99999), 'ts': now().timestamp()}}) %} {# Ensure dist is a float #}
+                {% endfor %}
+                {# Retain/reset cooldown and timeout fields #}
+                {{ {'preheat_globally_active': false, 'preheat_cooldown_until_ts': _preheat_cooldown_active_until, 'preheat_triggered_by_device_id': none, 'preheat_last_active_device_update_ts': 0, 'devices': updated_devices_data} | to_json }}
+          - action: *_update_control_data_action
+        alias: "Mode: Away - Set Away mode, update control data"
