@@ -21,7 +21,7 @@ blueprint:
     #     the chamber light, and the printer device itself.
     #   - Adjustable thresholds for nozzle cooldown temperature and the door closed trigger delay.
 
-  name: Advanced Printer Door & Print Light Control v1.4
+  name: Advanced Printer Door & Print Light Control v1.5
   description: "Controls a printer chamber light based on door status, print events, nozzle temperature, and printer current stage (idle)."
 
 
@@ -106,6 +106,10 @@ variables:
     condition: state
     entity_id: !input current_stage_sensor
     state: 'idle'
+  # Variables for template usage
+  _nozzle_temp_sensor_entity: !input nozzle_temp_sensor
+  _cooldown_temp_threshold_value: !input cooldown_temp_threshold
+  _cooldown_check_max_duration_value: !input cooldown_check_max_duration
 
 # Automation Mode
 mode: single
@@ -187,7 +191,7 @@ actions:
                     - conditions:
                         - condition: template
                           value_template: >-
-                            {{ states(!input nozzle_temp_sensor) | float(200) <= !input cooldown_temp_threshold }}
+                            {{ states(_nozzle_temp_sensor_entity) | float(200) <= _cooldown_temp_threshold_value }}
                       sequence:
                         - if:
                             - condition: state # Door is closed
@@ -203,8 +207,8 @@ actions:
               until:
                 - condition: template
                   value_template: >
-                    {% set temp_ok = states(!input nozzle_temp_sensor) | float(200) <= !input cooldown_temp_threshold %}
-                    {% set max_duration_seconds = !input cooldown_check_max_duration %}
+                    {% set temp_ok = states(_nozzle_temp_sensor_entity) | float(200) <= _cooldown_temp_threshold_value %}
+                    {% set max_duration_seconds = _cooldown_check_max_duration_value %}
                     {% if max_duration_seconds > 0 %}
                       {{ temp_ok or repeat.index >= max_duration_seconds }}
                     {% else %}
