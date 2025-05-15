@@ -1,5 +1,5 @@
 blueprint:
-    # --- Advanced Printer Door & Print Light Control - Key Features ---
+    # --- Advanced Printer Door Light Control - Key Features ---
     # This blueprint offers intelligent control over your printer's chamber light,
     # reacting to door status and various print events, ensuring the light is on
     # when needed and off when appropriate, with safety and convenience in mind.
