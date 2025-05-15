@@ -6,8 +6,8 @@ blueprint:
     #
     # - **Door-Activated Lighting:**
     #   - Instantly turns the light ON when the printer enclosure door is opened.
-    #   - Turns the light OFF when the door is closed, but only if no print is active
-    #     AND the printer is confirmed to be in an 'idle' state (configurable delay).
+    #   - Turns the light OFF when the door is closed, provided the printer is confirmed
+    #     to be in an 'idle' state (configurable delay for door closed trigger).
     # - **Print Event Integration:**
     #   - Automatically turns the light ON when a print job starts.
     #   - Initiates a smart turn-OFF sequence when a print finishes or is canceled.
@@ -17,11 +17,11 @@ blueprint:
     #     before finally turning off the light, preventing premature deactivation.
     #   - Includes a configurable maximum duration for the cooldown check.
     # - **Comprehensive Configuration & Entity Selection:**
-    #   - User-selectable entities for all relevant sensors (door, printer stage, nozzle temperature, print progress),
+    #   - User-selectable entities for all relevant sensors (door, current printer stage, nozzle temperature),
     #     the chamber light, and the printer device itself.
     #   - Adjustable thresholds for nozzle cooldown temperature and the door closed trigger delay.
 
-  name: Advanced Printer Door & Print Light Control v1.5
+  name: Advanced Printer Door Light Control v1.6
   description: "Controls a printer chamber light based on door status, print events, nozzle temperature, and printer current stage (idle)."
 
 
