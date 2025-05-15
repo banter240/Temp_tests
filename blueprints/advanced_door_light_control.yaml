@@ -1,6 +1,4 @@
 blueprint:
-  name: Advanced Printer Door & Print Light Control v1.3
-  description: >-
     # --- Advanced Printer Door & Print Light Control - Key Features ---
     # This blueprint offers intelligent control over your printer's chamber light,
     # reacting to door status and various print events, ensuring the light is on
@@ -23,6 +21,10 @@ blueprint:
     #     the chamber light, and the printer device itself.
     #   - Adjustable thresholds for nozzle cooldown temperature and the door closed trigger delay.
 
+  name: Advanced Printer Door & Print Light Control v1.4
+  description: "Controls a printer chamber light based on door status, print events, nozzle temperature, and printer current stage (idle)."
+
+
   domain: automation
   input:
     # --- Device & Core Entity Settings ---
@@ -31,15 +33,15 @@ blueprint:
       description: "Select the printer device that emits print status events (e.g., 'event_print_started', 'event_print_finished', 'event_print_canceled' from the 'bambu_lab' domain)."
       selector:
         device:
-    printer_stage_sensor:
-      name: Printer Stage Sensor
+    current_stage_sensor:
+      name: Current Stage Sensor
       description: "Sensor reporting the current stage of the printer (e.g., 'idle', 'printing'). The light will only turn off when this sensor is in the 'idle' state."
       selector:
         entity:
           domain: sensor
-    door_sensor:
-      name: Door Sensor
-      description: "Binary sensor for the door. Assumes 'on' state for open, 'off' state for closed."
+    enclosure_door_sensor:
+      name: Enclosure Door Sensor
+      description: "Binary sensor for the enclosure door. Assumes 'on' state for open, 'off' state for closed."
       selector:
         entity:
           domain: binary_sensor
@@ -59,12 +61,6 @@ blueprint:
         entity:
           domain: sensor
           device_class: temperature
-    print_progress_sensor:
-      name: Print Progress Sensor
-      description: "Sensor reporting the print progress (0-100%). Used to determine if a print is active."
-      selector:
-        entity:
-          domain: sensor
     # --- Timing & Threshold Settings ---
     door_closed_trigger_delay:
       name: Door Closed Trigger Delay
@@ -106,9 +102,9 @@ variables:
     condition: state
     entity_id: !input chamber_light
     state: 'on'
-  condition_printer_is_idle: &condition_printer_is_idle
+  condition_printer_is_idle: &condition_printer_is_idle # Renamed input reflected here
     condition: state
-    entity_id: !input printer_stage_sensor
+    entity_id: !input current_stage_sensor
     state: 'idle'
 
 # Automation Mode
@@ -116,13 +112,13 @@ mode: single
 
 triggers:
   - platform: state
-    entity_id: !input door_sensor
+    entity_id: !input enclosure_door_sensor # Renamed input
     to: 'off' # Closed
     for:
       seconds: !input door_closed_trigger_delay
     id: door_closed
   - platform: state
-    entity_id: !input door_sensor
+    entity_id: !input enclosure_door_sensor # Renamed input
     to: 'on' # Opened
     id: door_opened
   - platform: device
@@ -160,14 +156,6 @@ actions:
               - door_closed
           - *condition_light_is_on # Use anchor
           - *condition_printer_is_idle # Use anchor
-          - condition: or
-            conditions:
-              - condition: numeric_state # Print is finished/not started
-                entity_id: !input print_progress_sensor
-                above: 99
-              - condition: numeric_state # Print is finished/not started
-                entity_id: !input print_progress_sensor
-                below: 1
         sequence:
           - service: light.turn_off
             target:
@@ -203,7 +191,7 @@ actions:
                       sequence:
                         - if:
                             - condition: state # Door is closed
-                              entity_id: !input door_sensor
+                              entity_id: !input enclosure_door_sensor # Renamed input
                               state: 'off'
                             - *condition_printer_is_idle # Use anchor
                           then:
